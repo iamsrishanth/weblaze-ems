@@ -62,7 +62,7 @@ export const getUsers = authenticatedAction({
 
     let query = supabase
       .from('app_user')
-      .select('*, department:departments(name)')
+      .select('*, department:department(name)')
       .order('created_at', { ascending: false })
 
     // Admin scope: only own department

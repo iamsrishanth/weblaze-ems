@@ -1286,7 +1286,7 @@ export default async function DashboardPage() {
               Departments Overview
             </CardTitle>
             <Link
-              href="/departments"
+              href="/admin/departments"
               className="text-xs text-blue-600 hover:underline"
             >
               Manage
@@ -1652,7 +1652,7 @@ export default async function DashboardPage() {
                     Manage Users
                   </Button>
                 </Link>
-                <Link href="/departments">
+                <Link href="/admin/departments">
                   <Button
                     variant="outline"
                     className="w-full justify-start"
