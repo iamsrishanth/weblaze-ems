@@ -120,3 +120,30 @@ export function assertNever(value: never): never {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+// ---------------------------------------------------------------------------
+// Organisation calendar day
+// ---------------------------------------------------------------------------
+
+/** The timezone the business actually operates in. */
+export const ORG_TIMEZONE = 'Asia/Kolkata'
+
+/**
+ * Today's date (YYYY-MM-DD) in the organisation timezone.
+ *
+ * Attendance, EOD and reporting all key off the calendar day. Deriving it
+ * from UTC filed a 04:47 IST check-in onto the previous day, so every
+ * "today" calculation must go through this helper instead of
+ * `new Date().toISOString().split('T')[0]`.
+ */
+export function orgToday(timeZone: string = ORG_TIMEZONE): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? '00'
+  return `${get('year')}-${get('month')}-${get('day')}`
+}

@@ -105,13 +105,13 @@ export const getDepartments = authenticatedAction({
         return {
           id: d.id as string,
           name: d.name as string,
-          description: d.description as string | null,
+          description: null, // the department table has no description column
           head_id: headId,
           head_name: head?.name ?? null,
           head_email: head?.email ?? null,
           leads_target: (d.leads_target ?? null) as number | null,
           calls_target: (d.calls_target ?? null) as number | null,
-          status: (d.status as string) || 'active',
+          status: d.is_active === false ? 'inactive' : 'active',
           employee_count: countByDept[(d.id as string)] || 0,
           created_at: d.created_at as string,
         }
@@ -168,11 +168,13 @@ export const updateDepartment = authenticatedAction({
 
     const updates: Record<string, unknown> = {}
     if (input.name !== undefined) updates.name = input.name
-    if (input.description !== undefined) updates.description = input.description
     if (input.head_id !== undefined) updates.head_id = input.head_id
     if (input.leads_target !== undefined) updates.leads_target = input.leads_target
     if (input.calls_target !== undefined) updates.calls_target = input.calls_target
-    if (input.status !== undefined) updates.status = input.status
+    // `department` stores is_active (boolean), not a status enum
+    if (input.status !== undefined) updates.is_active = input.status === 'active'
+    // `description` is accepted by the schema but the table has no such column,
+    // so it is deliberately not persisted.
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No changes provided.')

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { orgToday } from '@/lib/utils'
 import { requireRole } from '@/lib/auth/require-role'
 import { authenticatedAction } from '@/lib/auth/require-role'
 import { eodReportSchema } from '@/lib/validations/index'
@@ -65,7 +66,7 @@ export const submitEOD = authenticatedAction({
   roles: ['super_admin', 'admin', 'employee'],
   handler: async ({ input, profile }) => {
     const supabase = await createClient()
-    const today = input.date ?? new Date().toISOString().split('T')[0]
+    const today = input.date ?? orgToday()
     const now = new Date().toISOString()
 
     // Determine status: late if submitted after 6 PM
@@ -163,7 +164,7 @@ export async function getTodayEOD(): Promise<
     ])
 
     const supabase = await createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const today = orgToday()
 
     const { data, error } = await supabase
       .from('eod_report')
@@ -304,7 +305,7 @@ export async function getEODCompliance(
     const { user: currentUser } = await requireRole(['admin', 'super_admin'])
 
     const supabase = await createClient()
-    const targetDate = date ?? new Date().toISOString().split('T')[0]
+    const targetDate = date ?? orgToday()
 
     // Get all active users
     let userQuery = supabase

@@ -1,6 +1,7 @@
 'use server'
 
 import { requireRole, AccessDeniedError } from '@/lib/auth/require-role'
+import { orgToday } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/admin'
 import { getClientNetwork } from '@/lib/request-ip'
@@ -22,6 +23,37 @@ function validPoint(point?: GeoPoint | null): GeoPoint | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
   return { lat, lng }
+}
+
+// ---------------------------------------------------------------------------
+// Organisation timezone
+//
+// Attendance is an IST business: "today" and the 09:30 late threshold must be
+// evaluated in Asia/Kolkata, not in the server's UTC. Using UTC filed a
+// 04:47 IST check-in onto the previous day and marked it late.
+// ---------------------------------------------------------------------------
+const ORG_TIMEZONE = 'Asia/Kolkata'
+
+function nowInOrgTimezone(): { date: string; hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ORG_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? '00'
+  const hour = Number(get('hour')) % 24
+
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    hour,
+    minute: Number(get('minute')),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +131,7 @@ export async function getTodayAttendance(): Promise<
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const today = orgToday()
 
     const { data, error } = await supabase
       .from('attendance')
@@ -122,7 +154,7 @@ export async function checkIn(
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const { date: today, hour, minute } = nowInOrgTimezone()
 
     // Prevent duplicate check-in
     const { data: existing } = await supabase
@@ -137,10 +169,8 @@ export async function checkIn(
     }
 
     const now = new Date()
-    const hour = now.getHours()
-    const minute = now.getMinutes()
 
-    // Late after 09:30
+    // Late after 09:30 IST
     const status: Attendance['status'] =
       hour > 9 || (hour === 9 && minute > 30) ? 'late' : 'present'
 
@@ -185,7 +215,7 @@ export async function checkOut(
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
-    const today = new Date().toISOString().split('T')[0]
+    const { date: today } = nowInOrgTimezone()
 
     // Find today's record
     const { data: record, error: fetchError } = await supabase
@@ -310,7 +340,7 @@ export async function getTeamAttendance(params?: {
     const { user, department } = await requireRole(['admin', 'super_admin'])
     const supabase = await createClient()
 
-    const date = params?.date ?? new Date().toISOString().split('T')[0]
+    const date = params?.date ?? orgToday()
 
     // Determine which department to query
     const targetDeptId =

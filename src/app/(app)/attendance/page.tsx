@@ -24,7 +24,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@/components/ui/tabs'
-import { cn, formatDate, formatTime } from '@/lib/utils'
+import { cn, formatDate, formatTime, orgToday } from '@/lib/utils'
 
 import type { AppUser, Department, Attendance, GeoPoint } from '@/types'
 import {
@@ -69,7 +69,7 @@ function monthLabel(month: string) {
 }
 
 function todayYYYYMMDD(): string {
-  return new Date().toISOString().split('T')[0]
+  return orgToday()
 }
 
 function todayMonth(): string {

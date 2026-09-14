@@ -26,7 +26,7 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react'
-import { cn, formatDate, formatTime, isSunday } from '@/lib/utils'
+import { cn, formatDate, formatTime, isSunday, orgToday } from '@/lib/utils'
 import type {
   AppUser,
   Department,
@@ -210,7 +210,7 @@ export default async function DashboardPage() {
     department = dept ?? null
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = orgToday()
 
   // Compute current week boundaries (Mon–Sat)
   const todayDate = new Date()
