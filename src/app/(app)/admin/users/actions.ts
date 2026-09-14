@@ -17,6 +17,15 @@ export interface UserWithDepartment extends AppUser {
 }
 
 // ---------------------------------------------------------------------------
+// Default credentials
+// ---------------------------------------------------------------------------
+
+// Every account an admin creates starts with this password. The profile row is
+// written with must_change_pw = true, so /setup forces the user to replace it
+// on first sign-in (see 001_schema.sql:102 for the column default).
+const DEFAULT_USER_PASSWORD = 'Weblaze@2026'
+
+// ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
 
@@ -119,10 +128,11 @@ export const createUser = authenticatedAction({
 
     const serviceClient = createServiceClient()
 
-    // 1. Create the auth user (triggers email confirmation)
+    // 1. Create the auth user with the shared default password
     const { data: authUser, error: authError } =
       await serviceClient.auth.admin.createUser({
         email: input.email,
+        password: DEFAULT_USER_PASSWORD,
         email_confirm: true,
         user_metadata: { name: input.name },
       })
@@ -148,6 +158,7 @@ export const createUser = authenticatedAction({
         role: input.role,
         department_id: input.department_id ?? null,
         status: 'active',
+        must_change_pw: true,
       })
 
     if (profileError) {
@@ -156,16 +167,8 @@ export const createUser = authenticatedAction({
       throw new Error(profileError.message)
     }
 
-    // 3. Send password reset email so the user can set their password
-    const { error: resetError } =
-      await serviceClient.auth.admin.generateLink({
-        type: 'recovery',
-        email: input.email,
-      })
-
-    if (resetError) {
-      console.error('[createUser] Failed to send password reset:', resetError)
-    }
+    // 3. No recovery email is sent — the account is usable immediately with the
+    //    default password, and must_change_pw forces a change at first sign-in.
 
     revalidatePath('/admin/users')
 

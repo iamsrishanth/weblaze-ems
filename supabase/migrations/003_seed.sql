@@ -33,6 +33,10 @@ on conflict (name) do update set
 -- ============================================================================
 -- SEED: Super Admin User
 -- ============================================================================
+-- NOTE: every account created through the admin UI starts with the shared
+--       default password (DEFAULT_USER_PASSWORD in
+--       src/app/(app)/admin/users/actions.ts) and is flagged must_change_pw,
+--       so /setup forces a password change at first sign-in.
 -- NOTE: The auth.users record must be created first via Supabase Auth
 -- (either through the dashboard or programmatically).
 -- Once the auth.users row exists with a known UUID, uncomment and run:
