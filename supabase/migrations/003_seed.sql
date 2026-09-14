@@ -16,12 +16,26 @@ values
     'Sales',
     20,   -- 20 leads per day target
     50,   -- 50 calls per day target
-    true
+    false -- demo department, disabled for Weblaze
   ),
   (
     '00000000-0000-0000-0000-000000000002',
     'Development',
     0,    -- no leads/calls targets for dev team
+    0,
+    false -- demo department, disabled for Weblaze
+  ),
+  (
+    '00000000-0000-0000-0000-000000000003',
+    'Technical',
+    0,
+    0,
+    true
+  ),
+  (
+    '00000000-0000-0000-0000-000000000004',
+    'Management',
+    0,
     0,
     true
   )
