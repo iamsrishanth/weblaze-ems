@@ -169,3 +169,9 @@ export interface PaginatedResult<T> {
   limit: number
   total_pages: number
 }
+
+// Captured from the browser for the attendance audit trail (never rendered)
+export interface GeoPoint {
+  lat: number
+  lng: number
+}

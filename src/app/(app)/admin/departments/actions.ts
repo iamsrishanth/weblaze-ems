@@ -136,11 +136,10 @@ export const createDepartment = authenticatedAction({
       .from('department')
       .insert({
         name: input.name,
-        description: input.description ?? null,
         head_id: input.head_id ?? null,
         leads_target: input.leads_target ?? null,
         calls_target: input.calls_target ?? null,
-        status: 'active',
+        is_active: true,
       })
       .select('id')
       .single()

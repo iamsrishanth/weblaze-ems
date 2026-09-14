@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type {
   UserRole,
@@ -36,6 +37,30 @@ export class AccessDeniedError extends Error {
 //   2. Authenticated user has no matching `app_user` row (FORBIDDEN)
 //   3. User's role is not in the allowed list (FORBIDDEN)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Cached profile lookup
+//
+// React's `cache` deduplicates within a single request. Keyed by user id only
+// (not by the Supabase client, which is a fresh object on every call and would
+// defeat the memoisation).
+// ---------------------------------------------------------------------------
+const loadProfile = cache(
+  async (
+    userId: string
+  ): Promise<{ appUser: AppUser | null; profileError: unknown }> => {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('app_user')
+      .select(
+        'id, name, email, role, department_id, manager_id, status, must_change_pw, join_date'
+      )
+      .eq('id', userId)
+      .maybeSingle<AppUser>()
+
+    return { appUser: data, profileError: error }
+  }
+)
+
 export async function requireRole(
   allowedRoles: UserRole[]
 ): Promise<AuthProfile> {
@@ -55,11 +80,9 @@ export async function requireRole(
   }
 
   // --- 2. Fetch the user's profile from app_user ---
-  const { data: appUser, error: profileError } = await supabase
-    .from('app_user')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle<AppUser>()
+  // Cached per request: a dashboard render triggers many server actions and
+  // each one would otherwise re-read the same profile row.
+  const { appUser, profileError } = await loadProfile(user.id)
 
   if (profileError || !appUser) {
     throw new AccessDeniedError(

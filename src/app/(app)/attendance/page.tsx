@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/tabs'
 import { cn, formatDate, formatTime } from '@/lib/utils'
 
-import type { AppUser, Department, Attendance } from '@/types'
+import type { AppUser, Department, Attendance, GeoPoint } from '@/types'
 import {
   getProfile,
   getTodayAttendance,
@@ -36,6 +36,7 @@ import {
   checkIn,
   checkOut,
 } from './actions'
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -230,10 +231,44 @@ export default function AttendancePage() {
   // -----------------------------------------------------------------------
   // Actions
   // -----------------------------------------------------------------------
+  // Best-effort device coordinates for the audit trail. Never blocks the
+  // action: denied permission, unsupported browser, or a slow fix all
+  // resolve to null and the check-in still goes through.
+  const captureLocation = (): Promise<GeoPoint | null> =>
+    new Promise((resolve) => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        resolve(null)
+        return
+      }
+      let settled = false
+      const done = (value: GeoPoint | null) => {
+        if (settled) return
+        settled = true
+        resolve(value)
+      }
+      // Do not hang the action waiting on a GPS fix.
+      const timer = setTimeout(() => done(null), 5000)
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timer)
+          done({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          })
+        },
+        () => {
+          clearTimeout(timer)
+          done(null)
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      )
+    })
+
   const handleCheckIn = async () => {
     setActionLoading('in')
     setError(null)
-    const res = await checkIn()
+    const location = await captureLocation()
+    const res = await checkIn(location)
     if (res.success) {
       setTodayRecord(res.data)
     } else {
@@ -245,7 +280,8 @@ export default function AttendancePage() {
   const handleCheckOut = async () => {
     setActionLoading('out')
     setError(null)
-    const res = await checkOut()
+    const location = await captureLocation()
+    const res = await checkOut(location)
     if (res.success) {
       setTodayRecord(res.data)
     } else {

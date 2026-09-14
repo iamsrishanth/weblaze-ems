@@ -100,7 +100,7 @@ export const submitEOD = authenticatedAction({
       // Insert
       const { error } = await supabase.from('eod_report').insert({
         user_id: profile.user.id,
-        date: today,
+        report_date: today,
         summary: input.summary,
         hours_worked: input.hours_worked,
         status,
@@ -137,13 +137,9 @@ export const submitEOD = authenticatedAction({
       } else {
         await supabase.from('daily_metrics').insert({
           user_id: profile.user.id,
-          date: today,
+          entry_date: today,
           leads: input.leads ?? 0,
           calls: input.calls ?? 0,
-          meetings: 0,
-          proposals: 0,
-          closed_deals: 0,
-          revenue: 0,
         })
       }
     }
@@ -210,9 +206,9 @@ export async function getEODHistory(params: {
     let query = supabase
       .from('eod_report')
       .select(
-        '*, user:user_id(name, email, department_id), department:user_id(department_id(name))'
+        'id, user_id, report_date, summary, tasks_completed, hours_worked, status, submitted_at, created_at, user:user_id(name, email, department_id)'
       )
-      .order('date', { ascending: false })
+      .order('report_date', { ascending: false })
       .limit(params.limit ?? 50)
 
     // Scope to user
@@ -236,10 +232,10 @@ export async function getEODHistory(params: {
     }
 
     if (params.dateFrom) {
-      query = query.gte('date', params.dateFrom)
+      query = query.gte('report_date', params.dateFrom)
     }
     if (params.dateTo) {
-      query = query.lte('date', params.dateTo)
+      query = query.lte('report_date', params.dateTo)
     }
 
     const { data, error } = await query
@@ -247,6 +243,29 @@ export async function getEODHistory(params: {
     if (error) {
       console.error('[getEODHistory] Supabase error:', error)
       return { success: false, error: 'Failed to fetch EOD history' }
+    }
+
+    // Resolve department names in ONE extra query instead of a nested embed
+    // (app_user <-> department has two FKs, so PostgREST cannot disambiguate
+    // the join and rejects the embedded form).
+    const deptIds = Array.from(
+      new Set(
+        (data ?? [])
+          .map((row: any) => row.user?.department_id)
+          .filter((id: unknown): id is string => typeof id === 'string')
+      )
+    )
+
+    const deptNames: Record<string, string> = {}
+    if (deptIds.length > 0) {
+      const { data: depts } = await supabase
+        .from('department')
+        .select('id, name')
+        .in('id', deptIds)
+
+      for (const d of (depts ?? []) as { id: string; name: string }[]) {
+        deptNames[d.id] = d.name
+      }
     }
 
     const reports: EODReportWithUser[] = (data || []).map((row: any) => ({
@@ -261,7 +280,10 @@ export async function getEODHistory(params: {
       created_at: row.created_at,
       user_name: row.user?.name ?? 'Unknown',
       user_email: row.user?.email ?? '',
-      department_name: row.department?.name ?? null,
+      department_name:
+        (row.user?.department_id
+          ? deptNames[row.user.department_id]
+          : null) ?? null,
     }))
 
     return { success: true, data: reports }

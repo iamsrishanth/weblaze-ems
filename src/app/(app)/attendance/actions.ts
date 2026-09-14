@@ -6,11 +6,23 @@ import { createServiceClient } from '@/lib/supabase/admin'
 import { getClientNetwork } from '@/lib/request-ip'
 import type {
   Attendance,
+  GeoPoint,
   AppUser,
   Department,
   ActionResult,
   PaginatedResult,
 } from '@/types'
+
+// ---------------------------------------------------------------------------
+// Coordinates captured by the browser (audit only — never surfaced in the UI)
+// ---------------------------------------------------------------------------
+function validPoint(point?: GeoPoint | null): GeoPoint | null {
+  if (!point) return null
+  const { lat, lng } = point
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat, lng }
+}
 
 // ---------------------------------------------------------------------------
 // Attendance IP logging (audit only — never surfaced in the UI)
@@ -104,7 +116,9 @@ export async function getTodayAttendance(): Promise<
 // ---------------------------------------------------------------------------
 // checkIn — create a new attendance record for today
 // ---------------------------------------------------------------------------
-export async function checkIn(): Promise<ActionResult<Attendance>> {
+export async function checkIn(
+  location?: GeoPoint | null
+): Promise<ActionResult<Attendance>> {
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
@@ -133,6 +147,8 @@ export async function checkIn(): Promise<ActionResult<Attendance>> {
     // Audit only — stored, never rendered.
     const network = await getClientNetwork()
 
+    const coords = validPoint(location)
+
     const { data, error } = await supabase
       .from('attendance')
       .insert({
@@ -141,6 +157,8 @@ export async function checkIn(): Promise<ActionResult<Attendance>> {
         check_in_at: now.toISOString(),
         status,
         check_in_ip: network.ip,
+        check_in_lat: coords?.lat ?? null,
+        check_in_lng: coords?.lng ?? null,
       })
       .select()
       .single()
@@ -161,7 +179,9 @@ export async function checkIn(): Promise<ActionResult<Attendance>> {
 // ---------------------------------------------------------------------------
 // checkOut — update today's attendance record with checkout time & hours
 // ---------------------------------------------------------------------------
-export async function checkOut(): Promise<ActionResult<Attendance>> {
+export async function checkOut(
+  location?: GeoPoint | null
+): Promise<ActionResult<Attendance>> {
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
@@ -201,12 +221,16 @@ export async function checkOut(): Promise<ActionResult<Attendance>> {
     // Audit only — stored, never rendered.
     const network = await getClientNetwork()
 
+    const coords = validPoint(location)
+
     const { data, error } = await supabase
       .from('attendance')
       .update({
         check_out_at: now.toISOString(),
         status: finalStatus,
         check_out_ip: network.ip,
+        check_out_lat: coords?.lat ?? null,
+        check_out_lng: coords?.lng ?? null,
       })
       .eq('id', record.id)
       .select()
@@ -246,7 +270,7 @@ export async function getAttendanceHistory(params?: {
       .from('attendance')
       .select('*')
       .eq('user_id', targetUserId)
-      .order('date', { ascending: false })
+      .order('work_date', { ascending: false })
 
     // Filter by month if provided
     if (params?.month) {
@@ -256,7 +280,7 @@ export async function getAttendanceHistory(params?: {
       const endDate = new Date(Number(year), Number(month), 0)
         .toISOString()
         .split('T')[0]
-      query = query.gte('date', startDate).lte('date', endDate)
+      query = query.gte('work_date', startDate).lte('work_date', endDate)
     }
 
     const { data, error } = await query.limit(100)
