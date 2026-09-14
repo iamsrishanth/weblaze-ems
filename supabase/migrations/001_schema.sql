@@ -94,7 +94,7 @@ create table public.department (
 create table public.app_user (
   id              uuid primary key,                 -- = auth.users.id (1:1)
   name            text not null,
-  email           public.citext not null unique,
+  email           citext not null unique,
   role            public.user_role not null default 'employee',
   department_id   uuid references public.department(id) on delete set null,
   manager_id      uuid references public.app_user(id) on delete set null,
