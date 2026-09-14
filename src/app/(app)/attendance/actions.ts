@@ -2,6 +2,8 @@
 
 import { requireRole, AccessDeniedError } from '@/lib/auth/require-role'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/admin'
+import { getClientNetwork } from '@/lib/request-ip'
 import type {
   Attendance,
   AppUser,
@@ -9,6 +11,37 @@ import type {
   ActionResult,
   PaginatedResult,
 } from '@/types'
+
+// ---------------------------------------------------------------------------
+// Attendance IP logging (audit only — never surfaced in the UI)
+//
+// Written with the service-role client so it bypasses RLS: a user must not be
+// able to forge or delete their own IP history. Failures are swallowed — a
+// missing log row must never block a check-in or check-out.
+// ---------------------------------------------------------------------------
+async function logAttendanceIp(params: {
+  attendanceId: string
+  userId: string
+  event: 'check_in' | 'check_out'
+}): Promise<void> {
+  try {
+    const network = await getClientNetwork()
+    const serviceClient = createServiceClient()
+    await serviceClient.from('attendance_ip_log').insert({
+      attendance_id: params.attendanceId,
+      user_id: params.userId,
+      event: params.event,
+      ip: network.ip,
+      ip_version: network.ipVersion,
+      user_agent: network.userAgent,
+    })
+  } catch (error) {
+    console.error(
+      `[attendance] failed to log IP for ${params.event}:`,
+      error instanceof Error ? error.message : error
+    )
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Generic action wrapper — catches errors and returns ActionResult
@@ -71,9 +104,7 @@ export async function getTodayAttendance(): Promise<
 // ---------------------------------------------------------------------------
 // checkIn — create a new attendance record for today
 // ---------------------------------------------------------------------------
-export async function checkIn(
-  note?: string
-): Promise<ActionResult<Attendance>> {
+export async function checkIn(): Promise<ActionResult<Attendance>> {
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
@@ -99,29 +130,38 @@ export async function checkIn(
     const status: Attendance['status'] =
       hour > 9 || (hour === 9 && minute > 30) ? 'late' : 'present'
 
+    // Audit only — stored, never rendered.
+    const network = await getClientNetwork()
+
     const { data, error } = await supabase
       .from('attendance')
       .insert({
         user_id: user.id,
-        date: today,
-        check_in: now.toISOString(),
+        work_date: today,
+        check_in_at: now.toISOString(),
         status,
-        note: note ?? null,
+        check_in_ip: network.ip,
       })
       .select()
       .single()
 
     if (error) throw error
-    return data as Attendance
+
+    const record = data as Attendance
+    await logAttendanceIp({
+      attendanceId: record.id,
+      userId: user.id,
+      event: 'check_in',
+    })
+
+    return record
   })
 }
 
 // ---------------------------------------------------------------------------
 // checkOut — update today's attendance record with checkout time & hours
 // ---------------------------------------------------------------------------
-export async function checkOut(
-  note?: string
-): Promise<ActionResult<Attendance>> {
+export async function checkOut(): Promise<ActionResult<Attendance>> {
   return wrapAction(async () => {
     const { user } = await requireRole(['employee', 'admin', 'super_admin'])
     const supabase = await createClient()
@@ -158,17 +198,28 @@ export async function checkOut(
     const finalStatus: Attendance['status'] =
       totalHours < 4 ? 'half_day' : record.status
 
+    // Audit only — stored, never rendered.
+    const network = await getClientNetwork()
+
     const { data, error } = await supabase
       .from('attendance')
       .update({
         check_out_at: now.toISOString(),
         status: finalStatus,
+        check_out_ip: network.ip,
       })
       .eq('id', record.id)
       .select()
       .single()
 
     if (error) throw error
+
+    await logAttendanceIp({
+      attendanceId: record.id,
+      userId: user.id,
+      event: 'check_out',
+    })
+
     return data as Attendance
   })
 }
