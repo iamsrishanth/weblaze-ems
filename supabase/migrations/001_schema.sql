@@ -1,5 +1,5 @@
 -- ============================================================================
--- ByteCode EMS v3 — Schema Definition
+-- Weblaze EMS v3 — Schema Definition
 -- Migration: 001_schema.sql
 -- Tables, indexes, triggers, helper functions, views
 -- ============================================================================

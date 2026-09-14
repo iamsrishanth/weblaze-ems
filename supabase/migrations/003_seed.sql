@@ -1,5 +1,5 @@
 -- ============================================================================
--- ByteCode EMS v3 — Seed Data
+-- Weblaze EMS v3 — Seed Data
 -- Migration: 003_seed.sql
 -- Departments, super_admin user, sample data
 -- ============================================================================
@@ -41,7 +41,7 @@ on conflict (name) do update set
 --   values (
 --     '<uuid-from-auth.users>',
 --     'Super Admin',
---     'admin@bytecode.com',
+--     'admin@weblaze.co.in',
 --     'super_admin',
 --     false
 --   )
@@ -56,7 +56,7 @@ on conflict (name) do update set
 -- values (
 --   'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 --   'Super Admin',
---   'admin@bytecode.com',
+--   'admin@weblaze.co.in',
 --   'super_admin',
 --   null,
 --   false
@@ -74,7 +74,7 @@ on conflict (name) do update set
 --   (
 --     'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 --     'Sales Manager',
---     'sales.manager@bytecode.com',
+--     'sales.manager@weblaze.co.in',
 --     'admin',
 --     '00000000-0000-0000-0000-000000000001',  -- Sales dept
 --     false
@@ -82,7 +82,7 @@ on conflict (name) do update set
 --   (
 --     'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 --     'Sales Rep 1',
---     'sales.rep1@bytecode.com',
+--     'sales.rep1@weblaze.co.in',
 --     'employee',
 --     '00000000-0000-0000-0000-000000000001',  -- Sales dept
 --     true
@@ -90,7 +90,7 @@ on conflict (name) do update set
 --   (
 --     'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 --     'Dev Manager',
---     'dev.manager@bytecode.com',
+--     'dev.manager@weblaze.co.in',
 --     'admin',
 --     '00000000-0000-0000-0000-000000000002',  -- Development dept
 --     false
@@ -98,7 +98,7 @@ on conflict (name) do update set
 --   (
 --     'e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 --     'Developer 1',
---     'dev1@bytecode.com',
+--     'dev1@weblaze.co.in',
 --     'employee',
 --     '00000000-0000-0000-0000-000000000002',  -- Development dept
 --     true

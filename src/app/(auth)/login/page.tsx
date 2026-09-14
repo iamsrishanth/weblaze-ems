@@ -81,7 +81,7 @@ export default function LoginPage() {
           Welcome back
         </CardTitle>
         <CardDescription className="text-center">
-          Sign in to your ByteCode EMS account
+          Sign in to your Weblaze EMS account
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>

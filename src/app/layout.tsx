@@ -21,14 +21,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ByteCode EMS — Employee Management System",
+  title: "Weblaze EMS — Employee Management System",
   description:
     "Track attendance, tasks, EOD reports, and weekly analytics for your team.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ByteCode EMS",
+    title: "Weblaze EMS",
   },
   icons: {
     icon: "/icon-192.png",

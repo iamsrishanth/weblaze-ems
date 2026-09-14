@@ -1,5 +1,5 @@
 -- ============================================================================
--- ByteCode EMS v3 — pg_cron Scheduled Jobs
+-- Weblaze EMS v3 — pg_cron Scheduled Jobs
 -- Migration: 004_cron.sql
 -- Requires pg_cron extension enabled (included in 001_schema.sql)
 -- ============================================================================

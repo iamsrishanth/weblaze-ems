@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -125,10 +126,15 @@ export default function Sidebar({ user }: SidebarProps) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex h-14 items-center gap-3 border-b border-slate-700/50 px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">
-          B
-        </div>
-        <span className="font-semibold text-base text-white">ByteCode EMS</span>
+        <Image
+          src="/logo_dark.png"
+          alt="Weblaze"
+          width={560}
+          height={136}
+          className="h-7 w-auto"
+          priority
+        />
+        <span className="font-semibold text-base text-white">EMS</span>
       </div>
 
       {/* User info */}

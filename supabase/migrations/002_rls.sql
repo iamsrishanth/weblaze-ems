@@ -1,5 +1,5 @@
 -- ============================================================================
--- ByteCode EMS v3 — Row-Level Security Policies
+-- Weblaze EMS v3 — Row-Level Security Policies
 -- Migration: 002_rls.sql
 -- Default-deny: all tables enabled, then scoped policies added
 -- ============================================================================

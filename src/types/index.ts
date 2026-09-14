@@ -1,5 +1,5 @@
 // ============================================================
-// ByteCode EMS v3 — Type Definitions (matched to actual DB schema)
+// Weblaze EMS v3 — Type Definitions (matched to actual DB schema)
 // ============================================================
 
 // ---- Enums ----

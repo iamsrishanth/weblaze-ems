@@ -1,6 +1,6 @@
 {
-  "name": "ByteCode EMS",
-  "short_name": "ByteCode",
+  "name": "Weblaze EMS",
+  "short_name": "Weblaze",
   "description": "Employee Management System — attendance, tasks, EOD reports, and weekly analytics",
   "start_url": "/dashboard",
   "display": "standalone",

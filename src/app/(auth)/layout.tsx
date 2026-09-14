@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "ByteCode EMS — Authentication",
+  title: "Weblaze EMS — Authentication",
 };
 
 export default function AuthLayout({
@@ -14,11 +15,16 @@ export default function AuthLayout({
       <div className="w-full max-w-md">
         {/* Logo placeholder */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-lg shadow-lg shadow-blue-600/25">
-            B
-          </div>
+          <Image
+            src="/logo_light.png"
+            alt="Weblaze"
+            width={560}
+            height={136}
+            className="mx-auto mb-3 h-10 w-auto"
+            priority
+          />
           <h1 className="text-xl font-semibold text-slate-800">
-            ByteCode EMS
+            Weblaze EMS
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             Employee Management System

@@ -60,7 +60,7 @@ export function isSunday(date: Date | string): boolean {
 
 /**
  * Returns true if the date is a working day (Monday–Saturday).
- * ByteCode follows a 6-day work week.
+ * Weblaze follows a 6-day work week.
  */
 export function isWorkingDay(date: Date | string): boolean {
   const d = typeof date === 'string' ? new Date(date) : date
