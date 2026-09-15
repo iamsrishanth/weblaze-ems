@@ -556,36 +556,36 @@ export default async function DashboardPage() {
     // --- Queries (all scoped to department) ---
 
     // Active users in department
-    const { data: deptUsers } = deptId
-      ? await supabase
+    const deptUsers = (deptId
+      ? (await supabase
           .from('app_user')
-          .select('*')
+          .select('id, name, email, role, department_id, status')
           .eq('department_id', deptId)
           .eq('status', 'active')
-          .order('name')
-      : { data: [] }
+          .order('name')).data
+      : []) as AppUser[]
     const deptUserIds = (deptUsers ?? []).map((u: AppUser) => u.id)
 
     // Today's attendance for department
-    const { data: deptAttendance } = deptId
-      ? await supabase
+    const deptAttendance = (deptId
+      ? (await supabase
           .from('attendance')
-          .select('*')
+          .select('id, user_id, work_date, check_in_at, check_out_at, status, total_hours')
           .in('user_id', deptUserIds)
-          .eq('work_date', today)
-      : { data: [] }
+          .eq('work_date', today)).data
+      : []) as Attendance[]
     const attendanceMap = new Map(
       (deptAttendance ?? []).map((a: Attendance) => [a.user_id, a]),
     )
 
     // EOD compliance today
-    const { data: deptEODs } = deptId
-      ? await supabase
+    const deptEODs = (deptId
+      ? (await supabase
           .from('eod_report')
-          .select('*')
+          .select('id, user_id, report_date, status, submitted_at, hours_worked')
           .in('user_id', deptUserIds)
-          .eq('report_date', today)
-      : { data: [] }
+          .eq('report_date', today)).data
+      : []) as EODReport[]
     const eodSubmitters = new Set(
       (deptEODs ?? []).map((e: EODReport) => e.user_id),
     )
@@ -597,8 +597,8 @@ export default async function DashboardPage() {
     const { data: overdueTasks } = deptId
       ? await supabase
           .from('task')
-          .select('*')
-          .in('assigned_to', deptUserIds)
+          .select('id, title, status, priority, due_date, assigned_to, completed_at')
+      .in('assigned_to', deptUserIds)
           .lt('due_date', today)
           .neq('status', 'done')
           .order('due_date', { ascending: true })
@@ -615,8 +615,8 @@ export default async function DashboardPage() {
     if (isSalesDept(department)) {
       const { data: metrics } = await supabase
         .from('daily_metrics')
-        .select('*')
-        .in('user_id', deptUserIds)
+          .select('id, user_id, entry_date, leads, calls')
+      .in('user_id', deptUserIds)
         .eq('entry_date', today)
       deptMetrics = (metrics as DailyMetrics[]) ?? []
     }
@@ -932,43 +932,61 @@ export default async function DashboardPage() {
   // =========================================================================
 
   // --- Core queries ---
-  const { count: totalEmployees } = await supabase
-    .from('app_user')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'active')
+  // These eight reads are independent. Issued in parallel instead of paying
+  // eight sequential round-trips on every dashboard load. Count-only queries
+  // ask for `id`; row queries fetch only the columns the UI renders.
+  const [
+    { count: totalEmployees },
+    { count: totalDepartments },
+    { data: allDepartmentsRaw },
+    { count: presentToday },
+    { count: eodSubmittedToday },
+    { data: allActiveUsers },
+    { data: allEODs },
+    { data: deptCounts },
+  ] = await Promise.all([
+    supabase
+      .from('app_user')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'active'),
+    supabase
+      .from('department')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('department')
+      .select('id, name, is_active, leads_target, calls_target')
+      .order('name'),
+    supabase
+      .from('attendance')
+      .select('id', { count: 'exact', head: true })
+      .eq('work_date', today)
+      .in('status', ['present', 'late', 'half_day']),
+    supabase
+      .from('eod_report')
+      .select('id', { count: 'exact', head: true })
+      .eq('report_date', today),
+    // all active users, for the EOD compliance widget
+    supabase
+      .from('app_user')
+      .select('id, name, email, department_id')
+      .eq('status', 'active')
+      .order('name'),
+    // EOD reports for today (all users)
+    supabase
+      .from('eod_report')
+      .select('user_id, status')
+      .eq('report_date', today),
+    // department member counts
+    supabase
+      .from('app_user')
+      .select('department_id')
+      .eq('status', 'active')
+      .not('department_id', 'is', null),
+  ])
 
-  const { count: totalDepartments } = await supabase
-    .from('department')
-    .select('*', { count: 'exact', head: true })
-
-  const { data: allDepartments } = await supabase
-    .from('department')
-    .select('*')
-    .order('name')
-
-  const { count: presentToday } = await supabase
-    .from('attendance')
-    .select('*', { count: 'exact', head: true })
-    .eq('work_date', today)
-    .in('status', ['present', 'late', 'half_day'])
-
-  const { count: eodSubmittedToday } = await supabase
-    .from('eod_report')
-    .select('*', { count: 'exact', head: true })
-    .eq('report_date', today)
-
-  // Get all active users for EOD compliance widget
-  const { data: allActiveUsers } = await supabase
-    .from('app_user')
-    .select('id, name, email, department_id')
-    .eq('status', 'active')
-    .order('name')
-
-  // EOD reports for today (all users)
-  const { data: allEODs } = await supabase
-    .from('eod_report')
-    .select('user_id, status')
-    .eq('report_date', today)
+  // Narrowed selects come back with a structural row type; cast once here so
+  // the rest of the component keeps using the full Department type.
+  const allDepartments = (allDepartmentsRaw ?? []) as Department[]
 
   const eodSubmitterMap = new Map<string, string>(
     (allEODs ?? []).map((e: { user_id: string; status: string }) => [
@@ -983,11 +1001,6 @@ export default async function DashboardPage() {
 
   // Get department member counts
   const deptMemberCounts: Record<string, number> = {}
-  const { data: deptCounts } = await supabase
-    .from('app_user')
-    .select('department_id')
-    .eq('status', 'active')
-    .not('department_id', 'is', null)
 
   for (const row of deptCounts ?? []) {
     const did = (row as any).department_id as string
@@ -1008,30 +1021,34 @@ export default async function DashboardPage() {
   // Phase 6: This Week Stats
   // =========================================================================
 
-  // Weekly reports generated for current week
-  const { count: weeklyReportsThisWeek } = await supabase
-    .from('weekly_report')
-    .select('*', { count: 'exact', head: true })
-    .eq('week_start', weekStart)
-
-  // Total leads & calls this week from daily_metrics
-  const { data: weekMetrics } = await supabase
-    .from('daily_metrics')
-    .select('leads, calls')
-    .gte('entry_date', weekStart)
-    .lte('entry_date', weekEnd)
+  // Weekly stats — three independent reads, issued in parallel
+  const [
+    { count: weeklyReportsThisWeek },
+    { data: weekMetrics },
+    { data: weekAttendance },
+  ] = await Promise.all([
+    supabase
+      .from('weekly_report')
+      .select('id', { count: 'exact', head: true })
+      .eq('week_start', weekStart),
+    // total leads & calls this week
+    supabase
+      .from('daily_metrics')
+      .select('leads, calls')
+      .gte('entry_date', weekStart)
+      .lte('entry_date', weekEnd),
+    // attendance rows for the week
+    supabase
+      .from('attendance')
+      .select('status')
+      .gte('work_date', weekStart)
+      .lte('work_date', weekEnd),
+  ])
 
   const totalLeadsWeek =
     weekMetrics?.reduce((sum: number, m: any) => sum + (m.leads ?? 0), 0) ?? 0
   const totalCallsWeek =
     weekMetrics?.reduce((sum: number, m: any) => sum + (m.calls ?? 0), 0) ?? 0
-
-  // Average attendance rate this week
-  const { data: weekAttendance } = await supabase
-    .from('attendance')
-    .select('status')
-    .gte('work_date', weekStart)
-    .lte('work_date', weekEnd)
 
   const totalWorkDays = 6 // Mon–Sat
   const totalPossibleCheckins =
@@ -1075,7 +1092,7 @@ export default async function DashboardPage() {
   if (salesDeptUserIds.length > 0) {
     const { data: sm } = await supabase
       .from('daily_metrics')
-      .select('*')
+          .select('user_id, entry_date, leads, calls')
       .in('user_id', salesDeptUserIds)
       .eq('entry_date', today)
     todaySalesMetrics = sm ?? []
