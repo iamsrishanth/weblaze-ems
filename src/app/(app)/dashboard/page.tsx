@@ -936,19 +936,13 @@ export default async function DashboardPage() {
   // eight sequential round-trips on every dashboard load. Count-only queries
   // ask for `id`; row queries fetch only the columns the UI renders.
   const [
-    { count: totalEmployees },
     { count: totalDepartments },
     { data: allDepartmentsRaw },
     { count: presentToday },
     { count: eodSubmittedToday },
     { data: allActiveUsers },
     { data: allEODs },
-    { data: deptCounts },
   ] = await Promise.all([
-    supabase
-      .from('app_user')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'active'),
     supabase
       .from('department')
       .select('id', { count: 'exact', head: true }),
@@ -976,17 +970,15 @@ export default async function DashboardPage() {
       .from('eod_report')
       .select('user_id, status')
       .eq('report_date', today),
-    // department member counts
-    supabase
-      .from('app_user')
-      .select('department_id')
-      .eq('status', 'active')
-      .not('department_id', 'is', null),
   ])
 
   // Narrowed selects come back with a structural row type; cast once here so
   // the rest of the component keeps using the full Department type.
   const allDepartments = (allDepartmentsRaw ?? []) as Department[]
+
+  // allActiveUsers is already every active user — derive the headcount and the
+  // per-department counts from it instead of re-querying app_user twice more.
+  const totalEmployees = (allActiveUsers ?? []).length
 
   const eodSubmitterMap = new Map<string, string>(
     (allEODs ?? []).map((e: { user_id: string; status: string }) => [
@@ -999,11 +991,12 @@ export default async function DashboardPage() {
     (u: { id: string }) => !eodSubmitterMap.has(u.id),
   )
 
-  // Get department member counts
+  // Get department member counts (derived from allActiveUsers)
   const deptMemberCounts: Record<string, number> = {}
 
-  for (const row of deptCounts ?? []) {
-    const did = (row as any).department_id as string
+  for (const row of allActiveUsers ?? []) {
+    const did = (row as any).department_id as string | null
+    if (!did) continue
     deptMemberCounts[did] = (deptMemberCounts[did] ?? 0) + 1
   }
 
@@ -1076,17 +1069,12 @@ export default async function DashboardPage() {
 
   // Get today's metrics for all users in sales departments
   const salesDeptIds = salesDepts.map((d) => d.id)
-  const salesDeptUserIds: string[] = []
-  if (salesDeptIds.length > 0) {
-    const { data: salesUsers } = await supabase
-      .from('app_user')
-      .select('id')
-      .eq('status', 'active')
-      .in('department_id', salesDeptIds)
-    for (const u of salesUsers ?? []) {
-      salesDeptUserIds.push(u.id)
-    }
-  }
+  const salesDeptUserIds: string[] =
+    salesDeptIds.length > 0
+      ? (allActiveUsers ?? [])
+          .filter((u: any) => salesDeptIds.includes(u.department_id))
+          .map((u: any) => u.id)
+      : []
 
   let todaySalesMetrics: any[] = []
   if (salesDeptUserIds.length > 0) {
