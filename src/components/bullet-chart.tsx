@@ -123,7 +123,7 @@ export function BulletChart({
         {targetValue > 0 ? (
           <div
             aria-hidden="true"
-            className="absolute top-1/2 h-[18px] w-[3px] -translate-y-1/2 rounded-full bg-slate-200 ring-2 ring-background"
+            className="absolute top-1/2 h-[18px] w-[3px] -translate-y-1/2 rounded-full bg-foreground/25 ring-2 ring-background"
             style={{ left: pct(targetValue), marginLeft: -1.5 }}
           />
         ) : null}

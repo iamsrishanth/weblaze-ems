@@ -109,6 +109,9 @@ export default function ReportsPage() {
   const [calls, setCalls] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [alreadySubmitted, setAlreadySubmitted] = useState(false)
+  // True after "Edit submission" — keeps the button/title in "Update" mode
+  // even while alreadySubmitted is false (it also gates the submitted-card).
+  const [editingSubmission, setEditingSubmission] = useState(false)
   // True once the user edits a field (or restores a draft). Gates the
   // autosave writer: server-loaded values (fresh mount, or the reload
   // after a successful submit) must never be persisted as a phantom
@@ -275,8 +278,9 @@ export default function ReportsPage() {
         // phantom draft (the bug this flag closes).
         clearEodDraft()
         setFormTouched(false)
+        setEditingSubmission(false)
         toast.success(
-          alreadySubmitted
+          alreadySubmitted || editingSubmission
             ? 'EOD report updated'
             : 'EOD report submitted'
         )
@@ -388,7 +392,10 @@ export default function ReportsPage() {
                       variant="outline"
                       size="sm"
                       className="mt-5"
-                      onClick={() => setAlreadySubmitted(false)}
+                      onClick={() => {
+                        setEditingSubmission(true)
+                        setAlreadySubmitted(false)
+                      }}
                     >
                       Edit submission
                     </Button>
@@ -403,9 +410,9 @@ export default function ReportsPage() {
                       <span className="flex size-7 items-center justify-center rounded-md border border-status-positive/25 bg-status-positive/10 text-status-positive">
                         <Send className="size-3.5" />
                       </span>
-                      {alreadySubmitted
-                        ? 'Update Today\'s Report'
-                        : 'Submit Today\'s Report'}
+                      {alreadySubmitted || editingSubmission
+                        ? "Update Today's Report"
+                        : "Submit Today's Report"}
                     </span>
                     {/* Live character counter — the submit gate is 10 chars,
                         so chip turns positive once the summary clears it. */}
@@ -559,7 +566,7 @@ export default function ReportsPage() {
                         ) : (
                           <>
                             <Send className="size-4" />
-                            {alreadySubmitted
+                            {alreadySubmitted || editingSubmission
                               ? 'Update Report'
                               : 'Submit Report'}
                           </>

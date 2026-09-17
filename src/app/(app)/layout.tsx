@@ -77,8 +77,9 @@ export default async function AppLayout({
       <CommandPalette role={userRole} />
       {/* Offline/online transition toasts (renders nothing) */}
       <ConnectivityToast />
-      {/* Toasts portal to <body>, which carries the dark app tokens */}
-      <Toaster theme="dark" />
+      {/* Toasts portal to <body> — follows the active theme (dark default,
+          light when the user picks it via the sidebar toggle). */}
+      <Toaster />
     </div>
   );
 }

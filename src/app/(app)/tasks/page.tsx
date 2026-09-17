@@ -118,6 +118,14 @@ export default function TasksPage() {
     'all'
   )
   const [searchQuery, setSearchQuery] = useState('')
+  // Debounced mirror of the search box — getTasks fires at most 300ms after
+  // the last keystroke instead of once per character.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false)
@@ -207,7 +215,7 @@ export default function TasksPage() {
       const filters: TaskFilters = {
         status: statusFilter,
         priority: priorityFilter,
-        search: searchQuery || undefined,
+        search: debouncedSearch || undefined,
       }
       const result = await getTasks(filters)
       if (result.success) {
@@ -220,7 +228,7 @@ export default function TasksPage() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, priorityFilter, searchQuery])
+  }, [statusFilter, priorityFilter, debouncedSearch])
 
   useEffect(() => {
     fetchTasks()

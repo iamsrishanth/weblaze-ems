@@ -18,6 +18,9 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --color-sidebar-indicator: var(--sidebar-indicator);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -75,16 +78,18 @@
 /*
  * Theme architecture
  * ------------------
- * :root is the DARK application theme (the authenticated app is dark-first —
- * DESIGN.md §3). Auth screens (/login, /setup) opt out by wrapping their
- * content in `.light`, which re-declares every token with light values.
+ * DARK is the default app theme (`:root` + `.dark` — the authenticated app
+ * is dark-first per DESIGN.md §3). LIGHT is the `.light` class variant —
+ * used both by the auth screens' wrapper AND, when the user picks the light
+ * theme, by next-themes on <html> (see src/components/theme-provider.tsx).
  *
- * :root must stay dark (not a `.dark` class toggle) because Base UI portals
- * (dialogs, sheets, selects, toasts) attach to <body> and would otherwise
- * lose the theme context. The `dark:` variant is therefore intentionally
- * inert in this app.
+ * `:root` must stay dark (not only `.dark`) so the app is dark even before
+ * hydration, and so Base UI portals (dialogs, sheets, selects, toasts) that
+ * attach to <body> inherit the right tokens. `.light` must come AFTER `:root`
+ * in this file — same specificity, later declaration wins.
  */
-:root {
+:root,
+.dark {
   --background: #020617;
   --foreground: #f8fafc;
   --card: #1e293b;
@@ -120,6 +125,10 @@
   --sidebar-accent-foreground: #dbeafe;
   --sidebar-border: #1e293b;
   --sidebar-ring: #94a3b8;
+  /* Active nav item (Weblaze blue selected-state accent, theme-aware) */
+  --sidebar-active: rgba(59, 130, 246, 0.15);
+  --sidebar-active-foreground: #bfdbfe;
+  --sidebar-indicator: #60a5fa;
 
   /* Status colours — the single source of truth (see src/components/status.tsx) */
   --status-positive: #22c55e;
@@ -165,6 +174,9 @@
   --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #0f172a;
+  --sidebar-active: rgba(37, 99, 235, 0.16);
+  --sidebar-active-foreground: #1d4ed8;
+  --sidebar-indicator: #2563eb;
 
   /* Status colours tuned for AA contrast on light surfaces (used by
      text-status-* inside .light — e.g. the auth screens). */

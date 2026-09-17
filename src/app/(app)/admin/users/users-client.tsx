@@ -131,6 +131,15 @@ export default function UsersClient({
 
   // Filters
   const [search, setSearch] = useState('')
+  // Debounced mirror — getUsers fires 300ms after the last keystroke
+  // instead of once per character.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
@@ -157,7 +166,7 @@ export default function UsersClient({
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     const result = await getUsers({
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       role: roleFilter && roleFilter !== 'all' ? roleFilter : undefined,
       status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
       department_id: deptFilter && deptFilter !== 'all' ? deptFilter : undefined,
@@ -168,7 +177,7 @@ export default function UsersClient({
       toast.error(result.error)
     }
     setLoading(false)
-  }, [search, roleFilter, statusFilter, deptFilter])
+  }, [debouncedSearch, roleFilter, statusFilter, deptFilter])
 
   useEffect(() => {
     fetchUsers()

@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { cn, orgToday } from "@/lib/utils";
 import { DRAFT_CHANGE_EVENT } from "@/hooks/use-draft";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RoleBadge } from "@/components/status";
@@ -27,6 +28,7 @@ import {
   LogOutIcon,
   MenuIcon,
   SearchIcon,
+  ChevronRightIcon,
 } from "lucide-react";
 
 export interface SidebarProps {
@@ -104,14 +106,14 @@ function NavItem({
         "md:w-12 md:justify-center md:px-0 lg:w-full lg:justify-start lg:px-3",
         "focus-visible:ring-2 focus-visible:ring-ring/70",
         active
-          ? "bg-blue-500/15 text-blue-200"
-          : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+          ? "bg-sidebar-active text-sidebar-active-foreground"
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
       )}
     >
       {active ? (
         <span
           aria-hidden="true"
-          className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-blue-400 md:left-1 lg:left-0"
+          className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-sidebar-indicator md:left-1 lg:left-0"
         />
       ) : null}
       <Icon className="size-4 shrink-0" />
@@ -186,7 +188,7 @@ function SidebarContent({
       {/* Logo */}
       <div
         className={cn(
-          "flex h-16 shrink-0 items-center gap-2.5 border-b border-white/5 px-4",
+          "flex h-16 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4",
           "md:justify-center lg:justify-start lg:px-5"
         )}
       >
@@ -206,7 +208,7 @@ function SidebarContent({
           className="size-9 rounded-lg md:block lg:hidden"
           priority
         />
-        <span className="hidden text-sm font-semibold tracking-wide text-slate-300 lg:inline">
+        <span className="hidden text-sm font-semibold tracking-wide text-sidebar-foreground lg:inline">
           EMS
         </span>
       </div>
@@ -224,19 +226,19 @@ function SidebarContent({
           aria-keyshortcuts="Control+K Meta+K"
           title="Search (Ctrl K)"
           className={cn(
-            "mb-3 flex w-full items-center gap-3 rounded-lg border border-white/5 bg-white/[0.03] py-2 text-sm font-medium text-slate-400 outline-none",
-            "transition-colors duration-150 hover:bg-white/5 hover:text-slate-200 focus-visible:ring-2 focus-visible:ring-ring/70",
+            "mb-3 flex w-full items-center gap-3 rounded-lg border border-sidebar-border bg-foreground/[0.03] py-2 text-sm font-medium text-muted-foreground outline-none",
+            "transition-colors duration-150 hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/70",
             "md:w-12 md:justify-center md:px-0 lg:w-full lg:justify-start lg:px-3"
           )}
         >
           <SearchIcon className="size-4 shrink-0" />
           <span className="hidden truncate lg:inline">Search…</span>
-          <kbd className="ml-auto hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-sans text-[10px] font-medium text-slate-500 lg:inline">
+          <kbd className="ml-auto hidden rounded border border-foreground/10 bg-foreground/5 px-1.5 py-0.5 font-sans text-[10px] font-medium text-muted-foreground lg:inline">
             ⌘K
           </kbd>
         </button>
 
-        <p className="hidden px-3 pb-2 text-[10px] font-semibold tracking-[0.12em] text-slate-500 uppercase lg:block">
+        <p className="hidden px-3 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase lg:block">
           Work
         </p>
         <ul className="space-y-0.5">
@@ -259,7 +261,7 @@ function SidebarContent({
         </ul>
         {isAdmin ? (
           <>
-            <p className="hidden px-3 pt-5 pb-2 text-[10px] font-semibold tracking-[0.12em] text-slate-500 uppercase lg:block">
+            <p className="hidden px-3 pt-5 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase lg:block">
               Admin
             </p>
             <ul className="space-y-0.5 pt-1 md:pt-4 lg:pt-0">
@@ -280,32 +282,42 @@ function SidebarContent({
         ) : null}
       </nav>
 
-      {/* User block + sign out */}
-      <div className="shrink-0 border-t border-white/5 p-3">
-        <div
+      {/* User block (opens the profile page) + theme + sign out */}
+      <div className="shrink-0 border-t border-sidebar-border p-3">
+        <Link
+          href="/profile"
+          onClick={onNavigate}
+          title="View profile"
+          aria-label={`View profile — ${user.name}`}
           className={cn(
-            "flex items-center gap-3 rounded-lg px-2 py-1.5",
+            "group flex items-center gap-3 rounded-lg px-2 py-1.5 outline-none transition-colors duration-150",
+            "hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring/70",
             "md:justify-center lg:justify-start"
           )}
         >
           <Avatar>
-            <AvatarFallback className="bg-blue-500/15 text-xs font-semibold text-blue-200">
+            <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
               {getInitials(user.name)}
             </AvatarFallback>
           </Avatar>
           <div className="hidden min-w-0 flex-1 lg:block">
-            <p className="truncate text-sm font-medium text-slate-100">
+            <p className="truncate text-sm font-medium text-foreground">
               {user.name}
             </p>
-            <p className="truncate text-xs text-slate-500">
+            <p className="truncate text-xs text-muted-foreground">
               {user.department || user.email || ""}
             </p>
           </div>
-        </div>
+          <ChevronRightIcon
+            aria-hidden="true"
+            className="hidden size-4 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover:translate-x-0.5 lg:block"
+          />
+        </Link>
         <div className="mt-2 hidden lg:block">
           <RoleBadge role={user.role} />
         </div>
-        <SignOutButton className="mt-2 md:justify-center lg:justify-start" />
+        <ThemeToggle className="mt-2 md:justify-center lg:justify-start" />
+        <SignOutButton className="mt-1 md:justify-center lg:justify-start" />
       </div>
     </div>
   );
@@ -321,8 +333,8 @@ function SignOutButton({ className }: { className?: string }) {
         window.location.href = "/login";
       }}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 outline-none transition-colors duration-150",
-        "hover:bg-red-500/10 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-ring/70",
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors duration-150",
+        "hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/70",
         className
       )}
     >
@@ -343,7 +355,7 @@ export default function Sidebar({ user }: SidebarProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="text-slate-300 hover:bg-white/5 hover:text-white"
+          className="text-sidebar-foreground hover:bg-foreground/5 hover:text-foreground"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation menu"
         >
@@ -357,11 +369,11 @@ export default function Sidebar({ user }: SidebarProps) {
           className="h-6 w-auto"
           priority
         />
-        <span className="ml-auto text-xs font-medium text-slate-500">EMS</span>
+        <span className="ml-auto text-xs font-medium text-muted-foreground">EMS</span>
         <Button
           variant="ghost"
           size="icon"
-          className="size-9 text-slate-400 hover:bg-white/5 hover:text-white"
+          className="size-9 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
           onClick={openCommandPalette}
           aria-label="Search (Ctrl K)"
           aria-keyshortcuts="Control+K Meta+K"

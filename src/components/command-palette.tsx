@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PALETTE_OPEN_EVENT } from "@/components/palette-trigger";
@@ -29,6 +30,8 @@ import {
   CornerDownLeftIcon,
   ArrowUpDownIcon,
   KeyboardIcon,
+  UserRoundIcon,
+  SunMoonIcon,
 } from "lucide-react";
 
 /**
@@ -52,7 +55,7 @@ type CommandItem = {
   /** URL whose response is a download (CSV exports). */
   download?: string;
   /** Named side effect. */
-  action?: "sign-out" | "show-shortcuts";
+  action?: "sign-out" | "show-shortcuts" | "toggle-theme";
 };
 
 const NAV_ITEMS: CommandItem[] = [
@@ -95,6 +98,14 @@ const NAV_ITEMS: CommandItem[] = [
     icon: CalendarRangeIcon,
     keywords: "rollup summary week",
     href: "/reports/weekly",
+  },
+  {
+    id: "nav-profile",
+    label: "My Profile",
+    group: "Navigate",
+    icon: UserRoundIcon,
+    keywords: "me account stats password streaks settings",
+    href: "/profile",
   },
 ];
 
@@ -152,6 +163,14 @@ const ACTION_ITEMS: CommandItem[] = [
     icon: KeyboardIcon,
     keywords: "help keys hotkeys cheatsheet",
     action: "show-shortcuts",
+  },
+  {
+    id: "action-theme",
+    label: "Toggle light/dark theme",
+    group: "Actions",
+    icon: SunMoonIcon,
+    keywords: "appearance mode light dark contrast",
+    action: "toggle-theme",
   },
   {
     id: "action-signout",
@@ -285,6 +304,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export default function CommandPalette({ role }: { role: string }) {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -407,9 +427,11 @@ export default function CommandPalette({ role }: { role: string }) {
         })();
       } else if (item.action === "show-shortcuts") {
         setHelpOpen(true);
+      } else if (item.action === "toggle-theme") {
+        setTheme(resolvedTheme === "dark" ? "light" : "dark");
       }
     },
-    [router]
+    [router, resolvedTheme, setTheme]
   );
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -535,16 +557,16 @@ export default function CommandPalette({ role }: { role: string }) {
                           className={cn(
                             "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm outline-none transition-colors duration-75",
                             active
-                              ? "bg-blue-500/15 text-blue-100"
-                              : "text-slate-300 hover:text-foreground"
+                              ? "bg-sidebar-active text-sidebar-active-foreground"
+                              : "text-foreground/80 hover:text-foreground"
                           )}
                         >
                           <Icon
                             className={cn(
                               "size-4 shrink-0",
                               active
-                                ? "text-blue-300"
-                                : "text-slate-400"
+                                ? "text-sidebar-indicator"
+                                : "text-muted-foreground"
                             )}
                           />
                           <span className="min-w-0 flex-1 truncate">
@@ -556,7 +578,7 @@ export default function CommandPalette({ role }: { role: string }) {
                             </span>
                           ) : null}
                           {active ? (
-                            <CornerDownLeftIcon className="size-3.5 shrink-0 text-blue-300/80" />
+                            <CornerDownLeftIcon className="size-3.5 shrink-0 text-sidebar-indicator/80" />
                           ) : null}
                         </div>
                       </li>

@@ -123,20 +123,36 @@ export default async function DashboardPage() {
   // ROLE: Employee
   // =========================================================================
   if (profile.role === 'employee') {
-    // --- Queries ---
-    const { data: todayAttendance } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('user_id', profile.id)
-      .eq('work_date', today)
-      .maybeSingle<Attendance>()
-
-    const { data: todayTasksRaw } = await supabase
-      .from('task')
-      .select('status')
-      .eq('assigned_to', profile.id)
-
-    const tasks = todayTasksRaw as Pick<Task, 'status'>[] | null
+    // --- Queries (independent — issued in parallel) ---
+    const salesDept = isSalesDept(department)
+    const [attendanceRes, tasksRes, eodRes, metricsRes] = await Promise.all([
+      supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('work_date', today)
+        .maybeSingle<Attendance>(),
+      supabase.from('task').select('status').eq('assigned_to', profile.id),
+      supabase
+        .from('eod_report')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('report_date', today)
+        .maybeSingle<EODReport>(),
+      // Sales metrics — only queried for sales departments
+      salesDept
+        ? supabase
+            .from('daily_metrics')
+            .select('*')
+            .eq('user_id', profile.id)
+            .eq('entry_date', today)
+            .maybeSingle<DailyMetrics>()
+        : Promise.resolve({ data: null }),
+    ])
+    const todayAttendance = attendanceRes.data
+    const tasks = tasksRes.data as Pick<Task, 'status'>[] | null
+    const todayEOD = eodRes.data
+    const todayMetrics = salesDept ? metricsRes.data ?? null : null
     const taskCounts = {
       todo: 0,
       in_progress: 0,
@@ -152,25 +168,6 @@ export default async function DashboardPage() {
         else if (t.status === 'blocked') taskCounts.blocked++
         else if (t.status === 'done') taskCounts.done++
       }
-    }
-
-    const { data: todayEOD } = await supabase
-      .from('eod_report')
-      .select('*')
-      .eq('user_id', profile.id)
-      .eq('report_date', today)
-      .maybeSingle<EODReport>()
-
-    // Sales metrics
-    let todayMetrics: DailyMetrics | null = null
-    if (isSalesDept(department)) {
-      const { data: metrics } = await supabase
-        .from('daily_metrics')
-        .select('*')
-        .eq('user_id', profile.id)
-        .eq('entry_date', today)
-        .maybeSingle<DailyMetrics>()
-      todayMetrics = metrics ?? null
     }
 
     const isSundayToday = isSunday(today)
@@ -415,26 +412,56 @@ export default async function DashboardPage() {
       : []) as AppUser[]
     const deptUserIds = (deptUsers ?? []).map((u: AppUser) => u.id)
 
-    // Today's attendance for department
-    const deptAttendance = (deptId
-      ? (await supabase
-          .from('attendance')
-          .select('id, user_id, work_date, check_in_at, check_out_at, status, total_hours')
-          .in('user_id', deptUserIds)
-          .eq('work_date', today)).data
-      : []) as Attendance[]
+    // --- Queries (independent of each other — issued in parallel; all
+    //     scoped to the department's user ids) ---
+    const salesDept = isSalesDept(department)
+    const [attRes, eodRes, overdueRes, metricsRes] = await Promise.all([
+      deptId
+        ? supabase
+            .from('attendance')
+            .select(
+              'id, user_id, work_date, check_in_at, check_out_at, status, total_hours'
+            )
+            .in('user_id', deptUserIds)
+            .eq('work_date', today)
+        : Promise.resolve({ data: [] }),
+      deptId
+        ? supabase
+            .from('eod_report')
+            .select(
+              'id, user_id, report_date, status, submitted_at, hours_worked'
+            )
+            .in('user_id', deptUserIds)
+            .eq('report_date', today)
+        : Promise.resolve({ data: [] }),
+      deptId
+        ? supabase
+            .from('task')
+            .select(
+              'id, title, status, priority, due_date, assigned_to, completed_at'
+            )
+            .in('assigned_to', deptUserIds)
+            .lt('due_date', today)
+            .neq('status', 'done')
+            .order('due_date', { ascending: true })
+            .limit(10)
+        : Promise.resolve({ data: [] }),
+      // Sales metrics — only queried for sales departments
+      deptId && salesDept
+        ? supabase
+            .from('daily_metrics')
+            .select('id, user_id, entry_date, leads, calls')
+            .in('user_id', deptUserIds)
+            .eq('entry_date', today)
+        : Promise.resolve({ data: null }),
+    ])
+    const deptAttendance = (attRes.data ?? []) as Attendance[]
     const attendanceMap = new Map(
       (deptAttendance ?? []).map((a: Attendance) => [a.user_id, a]),
     )
 
     // EOD compliance today
-    const deptEODs = (deptId
-      ? (await supabase
-          .from('eod_report')
-          .select('id, user_id, report_date, status, submitted_at, hours_worked')
-          .in('user_id', deptUserIds)
-          .eq('report_date', today)).data
-      : []) as EODReport[]
+    const deptEODs = (eodRes.data ?? []) as EODReport[]
     const eodSubmitters = new Set(
       (deptEODs ?? []).map((e: EODReport) => e.user_id),
     )
@@ -443,16 +470,7 @@ export default async function DashboardPage() {
     )
 
     // Overdue tasks
-    const { data: overdueTasks } = deptId
-      ? await supabase
-          .from('task')
-          .select('id, title, status, priority, due_date, assigned_to, completed_at')
-      .in('assigned_to', deptUserIds)
-          .lt('due_date', today)
-          .neq('status', 'done')
-          .order('due_date', { ascending: true })
-          .limit(10)
-      : { data: [] }
+    const overdueTasks = overdueRes.data
 
     // Build a user name lookup map for the overdue tasks
     const userNameMap = new Map(
@@ -460,15 +478,7 @@ export default async function DashboardPage() {
     )
 
     // Sales metrics (if sales dept)
-    let deptMetrics: DailyMetrics[] | null = null
-    if (isSalesDept(department)) {
-      const { data: metrics } = await supabase
-        .from('daily_metrics')
-          .select('id, user_id, entry_date, leads, calls')
-      .in('user_id', deptUserIds)
-        .eq('entry_date', today)
-      deptMetrics = (metrics as DailyMetrics[]) ?? []
-    }
+    const deptMetrics = (metricsRes.data ?? null) as DailyMetrics[] | null
 
     // Department targets for sales
     const deptLeadsTarget = department?.leads_target ?? 0

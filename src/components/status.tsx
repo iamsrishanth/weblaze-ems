@@ -182,7 +182,7 @@ export function RoleBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium tracking-wide text-slate-300",
+        "inline-flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground",
         className
       )}
     >
