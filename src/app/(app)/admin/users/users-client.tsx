@@ -3,16 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
-  Table,
   TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Select,
   SelectContent,
@@ -35,13 +33,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataTable, Th, Td } from '@/components/data-table'
+import { RoleBadge, StatusPill } from '@/components/status'
+import { EmptyState, TableSkeleton } from '@/components/states'
 import {
   PlusIcon,
   SearchIcon,
   MoreHorizontalIcon,
-  UserIcon,
-  CheckCircleIcon,
-  XCircleIcon,
+  PencilIcon,
+  UserXIcon,
+  UserCheckIcon,
+  ArrowUpIcon,
   AlertTriangleIcon,
   Loader2Icon,
   UsersIcon,
@@ -54,23 +56,11 @@ import {
   updateUser,
   deactivateUser,
   reactivateUser,
-  getDepartmentsForSelect,
 } from './actions'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function roleBadgeVariant(role: string) {
-  switch (role) {
-    case 'super_admin':
-      return 'default' as const
-    case 'admin':
-      return 'secondary' as const
-    default:
-      return 'ghost' as const
-  }
-}
 
 function roleLabel(role: string) {
   switch (role) {
@@ -83,9 +73,20 @@ function roleLabel(role: string) {
   }
 }
 
-function statusBadgeVariant(status: string) {
-  return status === 'active' ? 'default' : 'destructive'
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0] ?? '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 }
+
+// Control heights per the design system: h-9 toolbar filters, h-10 form
+// fields. The data-size variant overrides the SelectTrigger's own scale.
+const filterControlClass = 'h-9 data-[size=default]:h-9'
+const fieldControlClass = 'h-10 w-full data-[size=default]:h-10'
 
 // ---------------------------------------------------------------------------
 // Types for forms
@@ -326,6 +327,10 @@ export default function UsersClient({
     ? departments
     : departments.filter((d) => d.id === currentUserDepartmentId)
 
+  const hasActiveFilters = Boolean(
+    search || roleFilter || statusFilter || deptFilter
+  )
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -336,19 +341,23 @@ export default function UsersClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-wrap items-center gap-2">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <div className="relative min-w-[200px] max-w-sm flex-1">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
+              aria-label="Search users"
+              className="h-9 pl-9"
             />
           </div>
 
           {/* Filters */}
           <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v ?? '')}>
-            <SelectTrigger size="sm" className="w-[130px]">
+            <SelectTrigger
+              aria-label="Filter by role"
+              className={cn('w-[130px]', filterControlClass)}
+            >
               <SelectValue placeholder="All roles" />
             </SelectTrigger>
             <SelectContent>
@@ -360,7 +369,10 @@ export default function UsersClient({
           </Select>
 
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? '')}>
-            <SelectTrigger size="sm" className="w-[130px]">
+            <SelectTrigger
+              aria-label="Filter by status"
+              className={cn('w-[130px]', filterControlClass)}
+            >
               <SelectValue placeholder="All status" />
             </SelectTrigger>
             <SelectContent>
@@ -372,7 +384,10 @@ export default function UsersClient({
 
           {isSuperAdmin && departments.length > 1 && (
             <Select value={deptFilter} onValueChange={(v) => setDeptFilter(v ?? '')}>
-              <SelectTrigger size="sm" className="w-[160px]">
+              <SelectTrigger
+                aria-label="Filter by department"
+                className={cn('w-[170px]', filterControlClass)}
+              >
                 <SelectValue placeholder="All departments" />
               </SelectTrigger>
               <SelectContent>
@@ -387,165 +402,162 @@ export default function UsersClient({
           )}
         </div>
 
-        <Button onClick={openAddDialog} size="sm">
+        <Button onClick={openAddDialog} className="h-9 shrink-0 px-4">
           <PlusIcon className="size-4" />
-          Add User
+          Add user
         </Button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {loading && users.length === 0 ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2Icon className="size-6 animate-spin text-slate-400" />
-          </div>
-        ) : users.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <UsersIcon className="size-12 mb-2 opacity-30" />
-            <p className="text-sm">No users found.</p>
-            <p className="text-xs mt-1">
-              {search || roleFilter || statusFilter || deptFilter
-                ? 'Try adjusting your filters.'
-                : 'Click "Add User" to create the first user.'}
-            </p>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name / Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="w-[60px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                        <UserIcon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-900">
-                          {user.name}
-                        </p>
-                        <p className="truncate text-xs text-slate-400">
-                          {user.email}
-                        </p>
-                      </div>
+      {/* Users table */}
+      {loading && users.length === 0 ? (
+        <Card className="gap-0 py-0">
+          <TableSkeleton rows={8} />
+        </Card>
+      ) : users.length === 0 ? (
+        <Card className="gap-0 py-0">
+          <EmptyState
+            icon={UsersIcon}
+            title="No users found"
+            description={
+              hasActiveFilters
+                ? 'Try adjusting your search or filters.'
+                : 'Get started by adding your first user.'
+            }
+            action={
+              !hasActiveFilters ? (
+                <Button onClick={openAddDialog} size="sm">
+                  <PlusIcon className="size-3.5" />
+                  Add user
+                </Button>
+              ) : undefined
+            }
+          />
+        </Card>
+      ) : (
+        <DataTable>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <Th>Name</Th>
+              <Th>Role</Th>
+              <Th>Department</Th>
+              <Th align="right">Status</Th>
+              <Th align="right">Joined</Th>
+              <Th className="w-[60px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <Td>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-8">
+                      <AvatarFallback className="bg-blue-500/15 text-xs font-semibold text-blue-200">
+                        {getInitials(user.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {user.name}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={roleBadgeVariant(user.role)}>
-                      {roleLabel(user.role)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-slate-600">
-                      {user.department_name || '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                        user.status === 'active'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-red-50 text-red-700'
-                      )}
+                  </div>
+                </Td>
+                <Td>
+                  <RoleBadge role={user.role} />
+                </Td>
+                <Td className="text-muted-foreground">
+                  {user.department_name || '—'}
+                </Td>
+                <Td align="right">
+                  <StatusPill status={user.status} />
+                </Td>
+                <Td numeric align="right" className="text-muted-foreground">
+                  {formatDate(user.created_at)}
+                </Td>
+                <Td align="right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Actions for ${user.name}`}
+                        />
+                      }
                     >
-                      {user.status === 'active' ? (
-                        <CheckCircleIcon className="size-3" />
-                      ) : (
-                        <XCircleIcon className="size-3" />
-                      )}
-                      {user.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-400">
-                    {formatDate(user.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon-sm" />
-                        }
-                      >
-                        <MoreHorizontalIcon className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => openEditDialog(user)}
-                        >
-                          Edit
-                        </DropdownMenuItem>
+                      <MoreHorizontalIcon className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                        <PencilIcon className="size-4" />
+                        Edit
+                      </DropdownMenuItem>
 
-                        {user.status === 'active' ? (
+                      {user.status === 'active' ? (
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => {
+                            setDeactivateTarget(user)
+                            setDeactivateDialogOpen(true)
+                          }}
+                        >
+                          <UserXIcon className="size-4" />
+                          Deactivate
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={() => handleReactivate(user)}>
+                          <UserCheckIcon className="size-4" />
+                          Reactivate
+                        </DropdownMenuItem>
+                      )}
+
+                      {/* Promote: only for super_admin, and only to admin */}
+                      {isSuperAdmin &&
+                        user.role === 'employee' &&
+                        user.status === 'active' && (
                           <DropdownMenuItem
                             onClick={() => {
-                              setDeactivateTarget(user)
-                              setDeactivateDialogOpen(true)
+                              setPromoteTarget(user)
+                              setPromoteToRole('admin')
+                              setPromoteDialogOpen(true)
                             }}
-                            className="text-red-600"
                           >
-                            Deactivate
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() => handleReactivate(user)}
-                          >
-                            Reactivate
+                            <ArrowUpIcon className="size-4" />
+                            Promote to Admin
                           </DropdownMenuItem>
                         )}
 
-                        {/* Promote: only for super_admin, and only to admin */}
-                        {isSuperAdmin &&
-                          user.role === 'employee' &&
-                          user.status === 'active' && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setPromoteTarget(user)
-                                setPromoteToRole('admin')
-                                setPromoteDialogOpen(true)
-                              }}
-                            >
-                              Promote to Admin
-                            </DropdownMenuItem>
-                          )}
-
-                        {isSuperAdmin &&
-                          user.role === 'admin' &&
-                          user.status === 'active' && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setPromoteTarget(user)
-                                setPromoteToRole('super_admin')
-                                setPromoteDialogOpen(true)
-                              }}
-                            >
-                              Promote to Super Admin
-                            </DropdownMenuItem>
-                          )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+                      {isSuperAdmin &&
+                        user.role === 'admin' &&
+                        user.status === 'active' && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setPromoteTarget(user)
+                              setPromoteToRole('super_admin')
+                              setPromoteDialogOpen(true)
+                            }}
+                          >
+                            <ArrowUpIcon className="size-4" />
+                            Promote to Super Admin
+                          </DropdownMenuItem>
+                        )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </Td>
+              </TableRow>
+            ))}
+          </TableBody>
+        </DataTable>
+      )}
 
       {/* ───── Add User Dialog ───── */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle>Add user</DialogTitle>
             <DialogDescription>
               Create a new user. They will receive a password reset email.
             </DialogDescription>
@@ -562,9 +574,10 @@ export default function UsersClient({
                 onChange={(e) =>
                   setForm({ ...form, email: e.target.value })
                 }
+                className="h-10"
               />
               {formErrors.email && (
-                <p className="text-xs text-red-600">{formErrors.email}</p>
+                <p className="text-xs text-destructive">{formErrors.email}</p>
               )}
             </div>
 
@@ -577,9 +590,10 @@ export default function UsersClient({
                 onChange={(e) =>
                   setForm({ ...form, name: e.target.value })
                 }
+                className="h-10"
               />
               {formErrors.name && (
-                <p className="text-xs text-red-600">{formErrors.name}</p>
+                <p className="text-xs text-destructive">{formErrors.name}</p>
               )}
             </div>
 
@@ -589,7 +603,7 @@ export default function UsersClient({
                 value={form.role}
                 onValueChange={(v) => setForm({ ...form, role: v ?? 'employee' })}
               >
-                <SelectTrigger id="add-role" className="w-full">
+                <SelectTrigger id="add-role" className={fieldControlClass}>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -610,7 +624,7 @@ export default function UsersClient({
                   setForm({ ...form, department_id: v === 'none' || v === null ? null : v })
                 }
               >
-                <SelectTrigger id="add-dept" className="w-full">
+                <SelectTrigger id="add-dept" className={fieldControlClass}>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -630,7 +644,7 @@ export default function UsersClient({
               {formLoading && (
                 <Loader2Icon className="size-4 animate-spin" />
               )}
-              Create User
+              Create user
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -640,7 +654,7 @@ export default function UsersClient({
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>Edit user</DialogTitle>
             <DialogDescription>
               Update role, department, or name for {editUser?.name}.
             </DialogDescription>
@@ -655,6 +669,7 @@ export default function UsersClient({
                 onChange={(e) =>
                   setForm({ ...form, name: e.target.value })
                 }
+                className="h-10"
               />
             </div>
 
@@ -664,7 +679,7 @@ export default function UsersClient({
                 value={form.role}
                 onValueChange={(v) => setForm({ ...form, role: v ?? 'employee' })}
               >
-                <SelectTrigger id="edit-role" className="w-full">
+                <SelectTrigger id="edit-role" className={fieldControlClass}>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -685,7 +700,7 @@ export default function UsersClient({
                   setForm({ ...form, department_id: v === 'none' || v === null ? null : v })
                 }
               >
-                <SelectTrigger id="edit-dept" className="w-full">
+                <SelectTrigger id="edit-dept" className={fieldControlClass}>
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -705,7 +720,7 @@ export default function UsersClient({
               {formLoading && (
                 <Loader2Icon className="size-4 animate-spin" />
               )}
-              Save Changes
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -718,7 +733,7 @@ export default function UsersClient({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Deactivate User</DialogTitle>
+            <DialogTitle>Deactivate user</DialogTitle>
             <DialogDescription>
               Are you sure you want to deactivate{' '}
               <strong>{deactivateTarget?.name}</strong>? They will no longer be
@@ -746,8 +761,8 @@ export default function UsersClient({
           <DialogHeader>
             <DialogTitle>Promote to {roleLabel(promoteToRole)}</DialogTitle>
             <DialogDescription>
-              <div className="flex items-start gap-2 mt-1">
-                <AlertTriangleIcon className="size-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="mt-1 flex items-start gap-2">
+                <AlertTriangleIcon className="mt-0.5 size-5 shrink-0 text-status-warning" />
                 <span>
                   You are about to promote{' '}
                   <strong>{promoteTarget?.name}</strong> to{' '}
@@ -762,7 +777,7 @@ export default function UsersClient({
               {formLoading && (
                 <Loader2Icon className="size-4 animate-spin" />
               )}
-              Confirm Promotion
+              Confirm promotion
             </Button>
           </DialogFooter>
         </DialogContent>

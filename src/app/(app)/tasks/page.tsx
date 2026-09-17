@@ -4,24 +4,25 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  SearchIcon,
-  PlusIcon,
-  Trash2Icon,
-  CalendarIcon,
-  ClockIcon,
-  UserIcon,
-  AlertCircleIcon,
-  RefreshCwIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
+  Search,
+  Plus,
+  Trash2,
+  Calendar,
+  Clock,
+  User,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare,
+  FileClock,
+  FilterX,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectTrigger,
@@ -35,13 +36,26 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { PageHeader } from '@/components/page-header'
+import { StatusPill, STATUS_COLORS, statusTone } from '@/components/status'
+import { EmptyState, ErrorState, ListCardSkeleton } from '@/components/states'
+import { useDraft } from '@/hooks/use-draft'
 
 import { getTasks, createTask, updateTaskStatus, deleteTask, getProfile } from './actions'
 import type { TaskWithAssignee, TaskFilters } from './actions'
-import type { TaskPriority, TaskStatus, ActionResult } from '@/types'
-import { cn, formatDate } from '@/lib/utils'
+import { getUsers } from '../admin/users/actions'
+import type { UserWithDepartment } from '../admin/users/actions'
+import type { TaskPriority, TaskStatus } from '@/types'
+import { cn, formatDate, formatDateTime } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,26 +79,27 @@ const PRIORITY_OPTIONS: { value: TaskPriority | 'all'; label: string }[] = [
   { value: 'urgent', label: 'Urgent' },
 ]
 
-const PRIORITY_VARIANTS: Record<TaskPriority, 'ghost' | 'outline' | 'secondary' | 'default' | 'destructive'> = {
-  low: 'ghost',
-  medium: 'outline',
-  high: 'secondary',
-  urgent: 'destructive',
-}
-
-const STATUS_VARIANTS: Record<TaskStatus, 'ghost' | 'outline' | 'secondary' | 'default' | 'destructive'> = {
-  todo: 'ghost',
-  in_progress: 'secondary',
-  blocked: 'destructive',
-  done: 'default',
-}
-
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return new Date(dueDate) < today
 }
+
+/** True when the keydown happened inside a text-entry surface. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable
+  )
+}
+
+const inputClass =
+  'h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40'
 
 // ---------------------------------------------------------------------------
 // Page Component
@@ -111,7 +126,63 @@ export default function TasksPage() {
   const [newPriority, setNewPriority] = useState<TaskPriority>('medium')
   const [newDueDate, setNewDueDate] = useState('')
   const [newAssignee, setNewAssignee] = useState('')
+  const [assignableUsers, setAssignableUsers] = useState<UserWithDepartment[]>([])
   const [saving, setSaving] = useState(false)
+
+  // ---- New-task draft (autosave — mirrors the EOD draft on /reports) ----
+  const taskDraftState = {
+    title: newTitle,
+    description: newDescription,
+    priority: newPriority,
+    dueDate: newDueDate,
+    assignee: newAssignee,
+  }
+  // Pristine snapshot captured once, before any edits, for the mount-time
+  // restore decision.
+  const [initialTaskDraftState] = useState(taskDraftState)
+  const taskDraftIsEmpty = useCallback(
+    (s: typeof taskDraftState) =>
+      !s.title.trim() &&
+      !s.description.trim() &&
+      !s.dueDate &&
+      !s.assignee &&
+      s.priority === 'medium',
+    []
+  )
+  const {
+    restoredDraft: restoredTaskDraft,
+    clearDraft: clearTaskDraft,
+    dismissDraft: dismissTaskDraft,
+  } = useDraft(
+    'weblaze-ems:task-draft',
+    taskDraftState,
+    taskDraftIsEmpty,
+    initialTaskDraftState
+  )
+
+  /** Unsubmitted work exists (a stored draft or live field values). */
+  const hasTaskDraft =
+    restoredTaskDraft !== null || !taskDraftIsEmpty(taskDraftState)
+
+  /** Any edit supersedes the restore offer — the form holds newer truth. */
+  function dismissStaleDraftOffer() {
+    if (restoredTaskDraft) dismissTaskDraft()
+  }
+
+  /** Apply a restored draft back into the dialog fields. */
+  function applyTaskDraft() {
+    if (!restoredTaskDraft) return
+    setNewTitle(restoredTaskDraft.state.title)
+    setNewDescription(restoredTaskDraft.state.description)
+    setNewPriority(restoredTaskDraft.state.priority)
+    setNewDueDate(restoredTaskDraft.state.dueDate)
+    // Coalesce for drafts stored before the assignee field existed.
+    setNewAssignee(restoredTaskDraft.state.assignee ?? '')
+    dismissTaskDraft()
+    toast.success('Draft restored', {
+      description: 'Your unsaved task is back in the form.',
+    })
+  }
 
   // Detail dialog
   const [selectedTask, setSelectedTask] = useState<TaskWithAssignee | null>(
@@ -155,15 +226,31 @@ export default function TasksPage() {
     fetchTasks()
   }, [fetchTasks])
 
-  // Also fetch user role from profile
+  // Also fetch user role from profile — and, for task creators, the
+  // assignable users (same admin/super_admin gate as createTask; reuses
+  // the frozen getUsers action so no contract changes are needed).
   useEffect(() => {
+    let cancelled = false
     async function checkRole() {
       const result = await getProfile()
-      if (result.success) {
-        setUserRole(result.data.user.role)
-      }
+      if (!result.success || cancelled) return
+      setUserRole(result.data.user.role)
+      const canCreate =
+        result.data.user.role === 'admin' ||
+        result.data.user.role === 'super_admin'
+      if (!canCreate) return
+      const usersResult = await getUsers({})
+      if (cancelled || !usersResult.success) return
+      setAssignableUsers(
+        usersResult.data
+          .filter((u) => u.status === 'active')
+          .sort((a, b) => a.name.localeCompare(b.name))
+      )
     }
     checkRole()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // ---- Status change handler ----
@@ -190,22 +277,34 @@ export default function TasksPage() {
       toast.error('Title is required')
       return
     }
+    // assigned_to is a required UUID in the frozen taskSchema — the form
+    // must collect a real assignee. The old all-zeros placeholder UUID
+    // violated the app_user FK (23503) and made every create fail.
+    if (!newAssignee) {
+      toast.error('Select an assignee', {
+        description: 'Tasks must be assigned to a team member.',
+      })
+      return
+    }
     setSaving(true)
     try {
       const result = await createTask({
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
-        assigned_to: newAssignee || '00000000-0000-0000-0000-000000000000', // placeholder
+        assigned_to: newAssignee,
         priority: newPriority,
         due_date: newDueDate || undefined,
       })
       if (result.success) {
         toast.success('Task created')
+        // Created — the draft has served its purpose; drop it.
+        clearTaskDraft()
         setCreateOpen(false)
         setNewTitle('')
         setNewDescription('')
         setNewPriority('medium')
         setNewDueDate('')
+        setNewAssignee('')
         fetchTasks()
       } else {
         toast.error(result.error || 'Failed to create task')
@@ -246,145 +345,319 @@ export default function TasksPage() {
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin'
 
+  // ---- "N" hotkey opens the New task dialog (admins, not while typing) ----
+  useEffect(() => {
+    if (!isAdmin) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (
+        (e.key === 'n' || e.key === 'N') &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isTypingTarget(e.target) &&
+        !createOpen &&
+        !detailOpen &&
+        !deleteTarget
+      ) {
+        e.preventDefault()
+        setCreateOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isAdmin, createOpen, detailOpen, deleteTarget])
+
+  // ---- Filter helpers ----
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (priorityFilter !== 'all' ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0)
+
+  function clearFilters() {
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    setSearchQuery('')
+  }
+
   // ---- Render ----
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Tasks
-          </h1>
-          <p className="text-sm text-slate-500">
-            Manage and track your team&apos;s tasks
-          </p>
-        </div>
-        {isAdmin && (
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger render={<Button size="sm" />}>
-              <PlusIcon className="size-4" />
-              New Task
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create New Task</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input
-                    placeholder="Task title"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
+      <PageHeader
+        title="Tasks"
+        description={"Manage and track your team's tasks"}
+        actions={
+          isAdmin ? (
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger
+                render={
+                  <Button
+                    size="sm"
+                    className="relative"
+                    aria-keyshortcuts="n"
+                    title={
+                      hasTaskDraft
+                        ? 'You have an unsaved task draft'
+                        : undefined
+                    }
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    placeholder="Optional description"
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    rows={3}
+                }
+              >
+                <Plus className="size-3.5" />
+                New task
+                <kbd className="pointer-events-none ml-1 hidden rounded border border-border/70 bg-muted/70 px-1 py-px text-[10px] font-semibold text-muted-foreground sm:inline-block">
+                  N
+                </kbd>
+                {hasTaskDraft && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 size-2.5 rounded-full bg-status-warning ring-2 ring-card"
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Priority</Label>
-                    <Select
-                      value={newPriority}
-                      onValueChange={(v) =>
-                        v && setNewPriority(v as TaskPriority)
-                      }
+                )}
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create new task</DialogTitle>
+                  <DialogDescription>
+                    Fields autosave as a local draft until you create the
+                    task.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {/* Restored-draft banner — offered only when the dialog
+                      fields were pristine at mount and a snapshot exists. */}
+                  {restoredTaskDraft ? (
+                    <div
+                      role="status"
+                      className="flex flex-col gap-3 rounded-lg border border-status-warning/25 bg-status-warning/10 p-3.5 sm:flex-row sm:items-center"
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-status-warning/15 text-status-warning">
+                        <FileClock className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">
+                          Unsaved draft found
+                        </p>
+                        <p className="numeric mt-0.5 text-xs text-muted-foreground">
+                          Saved{' '}
+                          {formatDateTime(
+                            new Date(restoredTaskDraft.meta.savedAt)
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={clearTaskDraft}
+                          className="border-status-warning/30 text-status-warning hover:bg-status-warning/10"
+                        >
+                          Discard
+                        </Button>
+                        <Button size="sm" onClick={applyTaskDraft}>
+                          Restore draft
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="task-title">Title</Label>
+                    <Input
+                      id="task-title"
+                      placeholder="Task title"
+                      value={newTitle}
+                      onChange={(e) => {
+                        setNewTitle(e.target.value)
+                        dismissStaleDraftOffer()
+                      }}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-description">Description</Label>
+                    <Textarea
+                      id="task-description"
+                      placeholder="Optional description"
+                      value={newDescription}
+                      onChange={(e) => {
+                        setNewDescription(e.target.value)
+                        dismissStaleDraftOffer()
+                      }}
+                      rows={3}
+                    />
+                  </div>
+                  {/* Assignee — required by the frozen taskSchema
+                      (assigned_to must be a real app_user UUID). */}
+                  <div className="space-y-2">
+                    <Label>Assignee</Label>
+                    <Select
+                      value={newAssignee}
+                      onValueChange={(v) => {
+                        if (v) setNewAssignee(v)
+                        dismissStaleDraftOffer()
+                      }}
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue
+                          placeholder={
+                            assignableUsers.length
+                              ? 'Select a team member'
+                              : 'Loading team…'
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {PRIORITY_OPTIONS.filter(
-                          (o) => o.value !== 'all'
-                        ).map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
+                        {assignableUsers.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">
+                            No assignable team members found in your scope.
+                          </div>
+                        ) : (
+                          assignableUsers.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              <span className="truncate">{u.name}</span>
+                              <span className="ml-1.5 truncate text-xs text-muted-foreground">
+                                · {u.department_name || u.email}
+                              </span>
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Due Date</Label>
-                    <Input
-                      type="date"
-                      value={newDueDate}
-                      onChange={(e) => setNewDueDate(e.target.value)}
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Priority</Label>
+                      <Select
+                        value={newPriority}
+                        onValueChange={(v) => {
+                          if (v) setNewPriority(v as TaskPriority)
+                          dismissStaleDraftOffer()
+                        }}
+                      >
+                        <SelectTrigger className="h-10 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRIORITY_OPTIONS.filter(
+                            (o) => o.value !== 'all'
+                          ).map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="task-due-date">Due Date</Label>
+                      <Input
+                        id="task-due-date"
+                        type="date"
+                        value={newDueDate}
+                        onChange={(e) => {
+                          setNewDueDate(e.target.value)
+                          dismissStaleDraftOffer()
+                        }}
+                        className="numeric h-10"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter showCloseButton>
-                <Button onClick={handleCreate} disabled={saving}>
-                  {saving ? 'Creating...' : 'Create Task'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+                <DialogFooter>
+                  {/* Autosave hint — mirrors the draft hook behaviour. */}
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground sm:mr-auto">
+                    <FileClock className="size-3.5 shrink-0 text-muted-foreground/70" />
+                    Draft autosaves locally — nothing is sent until you
+                    create it
+                  </p>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={saving}
+                    className="sm:shrink-0"
+                  >
+                    {saving ? (
+                      <>
+                        <RefreshCw className="size-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="size-4" />
+                        Create task
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : null
+        }
+      />
 
       {/* Filters */}
       <Card size="sm">
-        <CardContent className="py-3">
+        <CardContent className="px-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
                 placeholder="Search tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                aria-label="Search tasks"
+                className={cn(inputClass, 'pl-9')}
               />
             </div>
             <div className="flex gap-2">
-              <Select
+              <select
                 value={statusFilter}
-                onValueChange={(v) =>
-                  v && setStatusFilter(v as TaskStatus | 'all')
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as TaskStatus | 'all')
                 }
+                aria-label="Filter by status"
+                className={cn(inputClass, 'flex-1 sm:w-40 sm:flex-none')}
               >
-                <SelectTrigger size="sm" className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <select
                 value={priorityFilter}
-                onValueChange={(v) =>
-                  v && setPriorityFilter(v as TaskPriority | 'all')
+                onChange={(e) =>
+                  setPriorityFilter(e.target.value as TaskPriority | 'all')
                 }
+                aria-label="Filter by priority"
+                className={cn(inputClass, 'flex-1 sm:w-40 sm:flex-none')}
               >
-                <SelectTrigger size="sm" className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {PRIORITY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  aria-label={`Clear ${activeFilterCount} active filter${activeFilterCount > 1 ? 's' : ''}`}
+                  className="shrink-0 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FilterX className="size-4" />
+                  <span className="hidden sm:inline">Clear</span>
+                </Button>
+              )}
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon-sm"
                 onClick={fetchTasks}
-                title="Refresh"
+                aria-label="Refresh tasks"
               >
-                <RefreshCwIcon className="size-4" />
+                <RefreshCw className="size-4" />
               </Button>
             </div>
           </div>
@@ -392,82 +665,105 @@ export default function TasksPage() {
       </Card>
 
       {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <RefreshCwIcon className="mx-auto size-8 animate-spin text-slate-400" />
-            <p className="mt-3 text-sm text-slate-500">Loading tasks...</p>
-          </div>
-        </div>
-      )}
+      {loading && <ListCardSkeleton rows={6} />}
 
       {/* Error State */}
       {!loading && error && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <AlertCircleIcon className="mx-auto size-8 text-red-400" />
-            <p className="mt-2 text-sm text-red-600">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={fetchTasks}
-            >
-              Retry
-            </Button>
-          </CardContent>
+        <Card className="gap-0 py-0">
+          <ErrorState description={error} onRetry={fetchTasks} />
         </Card>
       )}
 
       {/* Empty State */}
       {!loading && !error && tasks.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100">
-              <SearchIcon className="size-6 text-slate-400" />
-            </div>
-            <h3 className="mt-4 text-sm font-medium text-slate-900">
-              No tasks found
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {searchQuery
+        <Card className="gap-0 py-0">
+          <EmptyState
+            icon={CheckSquare}
+            title="No tasks found"
+            description={
+              activeFilterCount > 0
                 ? 'Try adjusting your search or filters'
-                : 'Create a new task to get started'}
-            </p>
-            {isAdmin && !searchQuery && (
-              <Button
-                size="sm"
-                className="mt-4"
-                onClick={() => setCreateOpen(true)}
-              >
-                <PlusIcon className="size-4" />
-                New Task
-              </Button>
-            )}
-          </CardContent>
+                : 'Create a new task to get started'
+            }
+            action={
+              isAdmin && activeFilterCount === 0 ? (
+                <Button
+                  size="sm"
+                  className="relative"
+                  onClick={() => setCreateOpen(true)}
+                  title={
+                    hasTaskDraft
+                      ? 'You have an unsaved task draft'
+                      : undefined
+                  }
+                >
+                  <Plus className="size-3.5" />
+                  New task
+                  {hasTaskDraft && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-1 -right-1 size-2.5 rounded-full bg-status-warning ring-2 ring-card"
+                    />
+                  )}
+                </Button>
+              ) : undefined
+            }
+          />
         </Card>
       )}
 
       {/* Task List */}
       {!loading && !error && tasks.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {tasks.map((task) => {
             const overdue = isOverdue(task.due_date) && task.status !== 'done'
+            // Priority accent — only for the escalation tiers (high/urgent)
+            // where at-a-glance scannability pays off; skipped for done tasks.
+            const showPriorityStrip =
+              (task.priority === 'high' || task.priority === 'urgent') &&
+              task.status !== 'done'
             return (
               <Card
                 key={task.id}
-                size="sm"
-                className={cn(
-                  'cursor-pointer transition-shadow hover:shadow-md',
-                  overdue && 'ring-2 ring-red-200'
-                )}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open task: ${task.title}`}
                 onClick={() => openDetail(task)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    openDetail(task)
+                  }
+                }}
+                className={cn(
+                  'relative cursor-pointer py-4 transition-all duration-150 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                  overdue &&
+                    'border-destructive/40 bg-destructive/[0.04] ring-destructive/30'
+                )}
               >
-                <CardContent className="py-3">
+                {showPriorityStrip && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-4 bottom-4 left-1 w-1 rounded-full"
+                    style={{
+                      backgroundColor:
+                        STATUS_COLORS[statusTone(task.priority)],
+                    }}
+                  />
+                )}
+                <CardContent className="px-5">
                   <div className="flex items-start gap-3">
                     {/* Expand/Collapse arrow */}
                     <button
-                      className="mt-0.5 text-slate-400 hover:text-slate-600"
+                      type="button"
+                      aria-label={
+                        expandedId === task.id
+                          ? 'Collapse task details'
+                          : 'Expand task details'
+                      }
+                      aria-expanded={expandedId === task.id}
+                      className="mt-0.5 rounded-md text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       onClick={(e) => {
                         e.stopPropagation()
                         setExpandedId(
@@ -476,91 +772,93 @@ export default function TasksPage() {
                       }}
                     >
                       {expandedId === task.id ? (
-                        <ChevronUpIcon className="size-4" />
+                        <ChevronUp className="size-4" />
                       ) : (
-                        <ChevronDownIcon className="size-4" />
+                        <ChevronDown className="size-4" />
                       )}
                     </button>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <span
                             className={cn(
-                              'text-sm font-medium',
+                              'text-sm font-medium text-foreground',
                               task.status === 'done' &&
-                                'text-slate-400 line-through'
+                                'text-muted-foreground line-through'
                             )}
                           >
                             {task.title}
                           </span>
-                          {overdue && (
-                            <Badge variant="destructive" className="text-[10px]">
-                              Overdue
-                            </Badge>
-                          )}
+                          {overdue && <StatusPill status="overdue" />}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={PRIORITY_VARIANTS[task.priority]}
-                            className="text-[10px]"
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusPill status={task.priority} />
+                          {/* Quick status change — same one-click flow as the
+                              original per-row select, rendered as a pill */}
+                          <span
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
                           >
-                            {task.priority}
-                          </Badge>
-                          {/* Status dropdown */}
-                          <Select
-                            value={task.status}
-                            onValueChange={(v) => {
-                              if (v) handleStatusChange(task.id, v as TaskStatus)
-                            }}
-                          >
-                            <SelectTrigger
-                              size="sm"
-                              className="h-6 gap-1 rounded-md px-1.5 text-xs"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {STATUS_OPTIONS.filter(
-                                (o) => o.value !== 'all'
-                              ).map((o) => (
-                                <SelectItem
-                                  key={o.value}
-                                  value={o.value}
-                                >
-                                  {o.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                aria-label={`Change status of ${task.title}`}
+                                render={
+                                  <button
+                                    type="button"
+                                    className="rounded-full outline-none transition-transform duration-150 hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-ring/70 active:scale-95"
+                                  />
+                                }
+                              >
+                                <StatusPill status={task.status} />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {STATUS_OPTIONS.filter(
+                                  (o) => o.value !== 'all'
+                                ).map((o) => (
+                                  <DropdownMenuItem
+                                    key={o.value}
+                                    disabled={o.value === task.status}
+                                    onClick={() =>
+                                      handleStatusChange(
+                                        task.id,
+                                        o.value as TaskStatus
+                                      )
+                                    }
+                                  >
+                                    <StatusPill status={o.value} />
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </span>
                         </div>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <UserIcon className="size-3" />
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <User className="size-3" />
                           {task.assignee_name}
                         </span>
                         {task.due_date && (
                           <span
                             className={cn(
-                              'flex items-center gap-1',
-                              overdue && 'font-medium text-red-600'
+                              'numeric flex items-center gap-1.5',
+                              overdue && 'font-medium text-destructive'
                             )}
                           >
-                            <CalendarIcon className="size-3" />
+                            <Calendar className="size-3" />
                             {formatDate(task.due_date)}
                           </span>
                         )}
-                        <span className="flex items-center gap-1">
-                          <ClockIcon className="size-3" />
+                        <span className="numeric flex items-center gap-1.5">
+                          <Clock className="size-3" />
                           {formatDate(task.created_at)}
                         </span>
                       </div>
 
                       {/* Expanded description */}
                       {expandedId === task.id && task.description && (
-                        <div className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-600">
+                        <div className="mt-2.5 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
                           {task.description}
                         </div>
                       )}
@@ -587,86 +885,89 @@ export default function TasksPage() {
               <div className="space-y-4">
                 {selectedTask.description && (
                   <div>
-                    <h4 className="mb-1 text-xs font-medium text-slate-500 uppercase">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Description
                     </h4>
-                    <p className="text-sm text-slate-700">
+                    <p className="mt-1.5 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
                       {selectedTask.description}
                     </p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
                   <div>
-                    <span className="text-xs font-medium text-slate-500">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Priority
-                    </span>
-                    <Badge
-                      variant={
-                        PRIORITY_VARIANTS[selectedTask.priority]
-                      }
-                      className="ml-2"
-                    >
-                      {selectedTask.priority}
-                    </Badge>
+                    </h4>
+                    <div className="mt-1.5">
+                      <StatusPill status={selectedTask.priority} />
+                    </div>
                   </div>
                   <div>
-                    <span className="text-xs font-medium text-slate-500">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Status
-                    </span>
-                    <Badge
-                      variant={
-                        STATUS_VARIANTS[selectedTask.status]
-                      }
-                      className="ml-2"
-                    >
-                      {selectedTask.status.replace('_', ' ')}
-                    </Badge>
+                    </h4>
+                    <div className="mt-1.5">
+                      <StatusPill status={selectedTask.status} />
+                    </div>
                   </div>
                   <div>
-                    <span className="text-xs font-medium text-slate-500">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Assigned To
-                    </span>
-                    <p>{selectedTask.assignee_name}</p>
+                    </h4>
+                    <p className="mt-1.5 text-sm text-foreground">
+                      {selectedTask.assignee_name}
+                    </p>
                   </div>
                   <div>
-                    <span className="text-xs font-medium text-slate-500">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Assigned By
-                    </span>
-                    <p>{selectedTask.assigner_name}</p>
+                    </h4>
+                    <p className="mt-1.5 text-sm text-foreground">
+                      {selectedTask.assigner_name}
+                    </p>
                   </div>
                   {selectedTask.due_date && (
                     <div>
-                      <span className="text-xs font-medium text-slate-500">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                         Due Date
-                      </span>
-                      <p>{formatDate(selectedTask.due_date)}</p>
+                      </h4>
+                      <p className="numeric mt-1.5 text-sm text-foreground">
+                        {formatDate(selectedTask.due_date)}
+                      </p>
                     </div>
                   )}
                   {selectedTask.completed_at && (
                     <div>
-                      <span className="text-xs font-medium text-slate-500">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                         Completed
-                      </span>
-                      <p>{formatDate(selectedTask.completed_at)}</p>
+                      </h4>
+                      <p className="numeric mt-1.5 text-sm text-foreground">
+                        {formatDate(selectedTask.completed_at)}
+                      </p>
                     </div>
                   )}
                   <div>
-                    <span className="text-xs font-medium text-slate-500">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Created
-                    </span>
-                    <p>{formatDate(selectedTask.created_at)}</p>
+                    </h4>
+                    <p className="numeric mt-1.5 text-sm text-foreground">
+                      {formatDate(selectedTask.created_at)}
+                    </p>
                   </div>
                 </div>
               </div>
-              <DialogFooter showCloseButton>
+              <DialogFooter
+                showCloseButton
+              >
                 {isAdmin && (
                   <Button
                     variant="destructive"
                     size="sm"
+                    className="sm:mr-auto"
                     onClick={() => setDeleteTarget(selectedTask)}
                     disabled={deleting}
                   >
-                    <Trash2Icon className="size-4" />
+                    <Trash2 className="size-3.5" />
                     Delete
                   </Button>
                 )}
@@ -684,7 +985,7 @@ export default function TasksPage() {
                     }
                   }}
                 >
-                  <SelectTrigger size="sm">
+                  <SelectTrigger size="sm" className="h-8 w-full sm:w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -712,19 +1013,29 @@ export default function TasksPage() {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Task</DialogTitle>
+            <DialogTitle>Delete task</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Are you sure you want to delete &quot;{deleteTarget?.title}&quot;?
             This action cannot be undone.
           </p>
-          <DialogFooter showCloseButton>
+          <DialogFooter>
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={deleting}
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

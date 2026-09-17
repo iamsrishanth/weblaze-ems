@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-geist-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,75 +46,135 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Centralised status palette (DESIGN.md §3). Use via the status-* colour utilities. */
+  --color-status-positive: var(--status-positive);
+  --color-status-warning: var(--status-warning);
+  --color-status-partial: var(--status-partial);
+  --color-status-negative: var(--status-negative);
+  --color-status-neutral: var(--status-neutral);
 }
 
+/* Entrances and skeleton motion — CSS-only micro-interactions (DESIGN.md §3
+ * “Micro-interactions”). The global prefers-reduced-motion block at the bottom
+ * of this file disables them for users who opt out. */
+@theme {
+  --animate-fade-in-up: fade-in-up 0.2s ease-out both;
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/*
+ * Theme architecture
+ * ------------------
+ * :root is the DARK application theme (the authenticated app is dark-first —
+ * DESIGN.md §3). Auth screens (/login, /setup) opt out by wrapping their
+ * content in `.light`, which re-declares every token with light values.
+ *
+ * :root must stay dark (not a `.dark` class toggle) because Base UI portals
+ * (dialogs, sheets, selects, toasts) attach to <body> and would otherwise
+ * lose the theme context. The `dark:` variant is therefore intentionally
+ * inert in this app.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #020617;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #24324a;
+  --popover-foreground: #f8fafc;
+  /* accent green = primary CTA (DESIGN.md: "--color-accent … primary CTA accent") */
+  --primary: #22c55e;
+  --primary-foreground: #052e16;
+  /* elevated surface (DESIGN.md: "--color-secondary … elevated surfaces") */
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1a2436;
+  --muted-foreground: #94a3b8;
+  --accent: #2b3a52;
+  --accent-foreground: #f8fafc;
+  --destructive: #f87171;
+  --destructive-foreground: #fef2f2;
+  --border: #334155;
+  --input: #3b4a63;
+  --ring: #94a3b8;
+  --chart-1: #22c55e;
+  --chart-2: #3b82f6;
+  --chart-3: #f59e0b;
+  --chart-4: #38bdf8;
+  --chart-5: #94a3b8;
+  --radius: 0.75rem;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #22c55e;
+  --sidebar-primary-foreground: #052e16;
+  --sidebar-accent: rgba(59, 130, 246, 0.14);
+  --sidebar-accent-foreground: #dbeafe;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #94a3b8;
+
+  /* Status colours — the single source of truth (see src/components/status.tsx) */
+  --status-positive: #22c55e;
+  --status-warning: #f59e0b;
+  --status-partial: #38bdf8;
+  --status-negative: #ef4444;
+  --status-neutral: #94a3b8;
+
+  color-scheme: dark;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/* Light surface — used by the (auth) route group only. */
+.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #15803d;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #fef2f2;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #0f172a;
+  --chart-1: #15803d;
+  --chart-2: #2563eb;
+  --chart-3: #d97706;
+  --chart-4: #0284c7;
+  --chart-5: #64748b;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #15803d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0f172a;
+
+  /* Status colours tuned for AA contrast on light surfaces (used by
+     text-status-* inside .light — e.g. the auth screens). */
+  --status-positive: #15803d;
+  --status-warning: #b45309;
+  --status-partial: #0369a1;
+  --status-negative: #b91c1c;
+  --status-neutral: #475569;
+
+  color-scheme: light;
 }
 
 @layer base {
@@ -126,5 +186,165 @@
   }
   html {
     @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Every clickable element gets a pointer (Tailwind v4 resets buttons to default) */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a,
+  select,
+  summary,
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 30%, transparent);
+  }
+  /* Slim, theme-aware scrollbars for the dense lists */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Numeric data: mono face with aligned columns (DESIGN.md §3 typography) */
+@utility numeric {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Skeleton shimmer — a soft highlight sweeping across loading placeholders
+ * (replaces the flat opacity pulse). Base fill stays on the element via the
+ * `skeleton` class; the sweep is the ::after overlay. Disabled automatically
+ * for reduced-motion users by the global block at the bottom of this file.
+ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.05),
+    transparent
+  );
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/*
+ * Auth backdrop — subtle dot-grid that fades out radially, grounding the
+ * centered card (DESIGN.md §3 “depth through surface, not shadow stacks”).
+ * Static (no animation) so it is unaffected by reduced-motion.
+ */
+.auth-pattern {
+  background-image: radial-gradient(
+    circle,
+    rgb(15 23 42 / 0.055) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 70% at 50% 40%,
+    black 35%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 90% 70% at 50% 40%,
+    black 35%,
+    transparent 78%
+  );
+}
+
+/*
+ * Dark app backdrop grid — faint blueprint grid for the 404 page (and any
+ * future full-bleed dark surface). Masks keep it subtle at the edges.
+ */
+.dark-grid-pattern {
+  background-image:
+    linear-gradient(rgb(148 163 184 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 75% 65% at 50% 45%,
+    black 30%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 75% 65% at 50% 45%,
+    black 30%,
+    transparent 75%
+  );
+}
+
+/*
+ * Print stylesheet — Ctrl+P on any authenticated screen produces a readable
+ * light document: the dark surface tokens flip to paper, chrome (sidebar,
+ * mobile bar — marked `print:hidden`) drops out, and layout offsets reset.
+ * Status accents stay saturated so pills/tones remain distinguishable.
+ */
+@media print {
+  :root {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #475569;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0f172a;
+    --border: #cbd5e1;
+    --input: #cbd5e1;
+    --sidebar: #ffffff;
+  }
+  body {
+    background: #ffffff !important;
+    color: #0f172a;
+  }
+  /* Keep table headers/card chrome from splitting awkwardly across pages */
+  table,
+  [data-slot="card"] {
+    break-inside: avoid;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}
+
+/* Respect users who prefer no motion — kills transforms and fades globally */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

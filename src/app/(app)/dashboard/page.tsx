@@ -1,6 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import {
@@ -24,9 +22,19 @@ import {
   Download,
   CalendarDays,
   CheckCircle2,
-  XCircle,
 } from 'lucide-react'
-import { cn, formatDate, formatTime, isSunday, orgToday } from '@/lib/utils'
+import { formatDate, formatTime, isSunday, orgToday } from '@/lib/utils'
+import { PageHeader } from '@/components/page-header'
+import { StatCard } from '@/components/stat-card'
+import { BulletChart } from '@/components/bullet-chart'
+import { ListCard, ListRow, ListRows } from '@/components/list-card'
+import { EmptyState } from '@/components/states'
+import {
+  StatusPill,
+  StatusCount,
+  toneText,
+  LINK_CLASSES,
+} from '@/components/status'
 import type {
   AppUser,
   Department,
@@ -42,116 +50,8 @@ export const dynamic = 'force-dynamic'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function statusBadgeClass(status: string) {
-  switch (status) {
-    case 'present':
-      return 'bg-green-100 text-green-800 border-green-300'
-    case 'late':
-      return 'bg-amber-100 text-amber-800 border-amber-300'
-    case 'half_day':
-      return 'bg-orange-100 text-orange-800 border-orange-300'
-    case 'absent':
-      return 'bg-red-100 text-red-800 border-red-300'
-    case 'submitted':
-      return 'bg-green-100 text-green-800 border-green-300'
-    case 'missed':
-      return 'bg-red-100 text-red-800 border-red-300'
-    case 'todo':
-      return 'bg-slate-100 text-slate-800 border-slate-300'
-    case 'in_progress':
-      return 'bg-blue-100 text-blue-800 border-blue-300'
-    case 'blocked':
-      return 'bg-red-100 text-red-800 border-red-300'
-    case 'done':
-      return 'bg-green-100 text-green-800 border-green-300'
-    case 'urgent':
-      return 'bg-red-100 text-red-800 border-red-300'
-    case 'high':
-      return 'bg-orange-100 text-orange-800 border-orange-300'
-    case 'medium':
-      return 'bg-amber-100 text-amber-800 border-amber-300'
-    case 'low':
-      return 'bg-slate-100 text-slate-800 border-slate-300'
-    default:
-      return 'bg-slate-100 text-slate-800 border-slate-300'
-  }
-}
-
-function statusLabel(status: string) {
-  return status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function priorityLabel(priority: string) {
-  return priority.charAt(0).toUpperCase() + priority.slice(1)
-}
-
 const isSalesDept = (dept: Department | null) =>
   dept?.name?.toLowerCase().includes('sales') ?? false
-
-// ---------------------------------------------------------------------------
-// Loading Skeleton
-// ---------------------------------------------------------------------------
-
-function CardSkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
-      </CardHeader>
-      <CardContent>
-        <div className="h-8 w-12 animate-pulse rounded bg-slate-200" />
-      </CardContent>
-    </Card>
-  )
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <div className="h-8 w-64 animate-pulse rounded bg-slate-200" />
-        <div className="mt-1 h-4 w-48 animate-pulse rounded bg-slate-200" />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <CardSkeleton key={i} />
-        ))}
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-10 animate-pulse rounded bg-slate-100"
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-10 animate-pulse rounded bg-slate-100"
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -166,15 +66,12 @@ export default async function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="size-8 text-amber-500 mb-2" />
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="mb-2 size-8 text-status-warning" />
+        <p className="text-sm text-muted-foreground">
           Please log in to view the dashboard.
         </p>
-        <Link
-          href="/login"
-          className="mt-2 text-sm text-blue-600 hover:underline"
-        >
+        <Link href="/login" className={`${LINK_CLASSES} mt-2 text-sm`}>
           Go to Login
         </Link>
       </div>
@@ -190,9 +87,9 @@ export default async function DashboardPage() {
 
   if (!profile) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="size-8 text-amber-500 mb-2" />
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="mb-2 size-8 text-status-warning" />
+        <p className="text-sm text-muted-foreground">
           User profile not found. Please contact an administrator.
         </p>
       </div>
@@ -278,270 +175,222 @@ export default async function DashboardPage() {
 
     const isSundayToday = isSunday(today)
 
+    // Presentational: leads target for the sales card — department target,
+    // falling back to the classic default of 5 when it is 0/missing.
+    const deptLeadsTarget = department?.leads_target ?? 0
+    const salesLeadsTarget = deptLeadsTarget > 0 ? deptLeadsTarget : 5
+
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Welcome back{profile.name ? `, ${profile.name.split(' ')[0]}` : ''}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {isSundayToday
-              ? 'Today is Sunday — enjoy your day off!'
-              : "Here's your daily overview."}
-          </p>
-        </div>
+        <PageHeader
+          title={`Welcome back${profile.name ? `, ${profile.name.split(' ')[0]}` : ''}`}
+          description={
+            isSundayToday
+              ? `Today is Sunday — enjoy your day off · ${formatDate(today)}`
+              : `Here's your daily overview · ${formatDate(today)}`
+          }
+          actions={
+            !isSundayToday && (
+              <>
+                {!todayAttendance && (
+                  <Link href="/attendance">
+                    <Button size="sm">
+                      <LogIn className="size-3.5" />
+                      Check In
+                    </Button>
+                  </Link>
+                )}
+                {todayAttendance &&
+                  todayAttendance.check_in_at &&
+                  !todayAttendance.check_out_at && (
+                    <Link href="/attendance">
+                      <Button variant="outline" size="sm">
+                        <LogOut className="size-3.5" />
+                        Check Out
+                      </Button>
+                    </Link>
+                  )}
+                {!todayEOD && todayAttendance && (
+                  <Link href="/reports">
+                    <Button size="sm">
+                      <FileText className="size-3.5" />
+                      Submit EOD
+                    </Button>
+                  </Link>
+                )}
+              </>
+            )
+          }
+        />
 
         {/* Stats grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Today's Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <Clock className="size-4" />
-                Today&apos;s Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {todayAttendance ? (
-                <div className="space-y-1">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'text-sm',
-                      statusBadgeClass(todayAttendance.status),
-                    )}
-                  >
-                    {statusLabel(todayAttendance.status)}
-                  </Badge>
-                  {(todayAttendance as any).check_in_at && (
-                    <p className="text-xs text-slate-400">
-                      In: {formatTime((todayAttendance as any).check_in_at)}
-                      {(todayAttendance as any).check_out_at &&
-                        ` • Out: ${formatTime((todayAttendance as any).check_out_at)}`}
-                    </p>
-                  )}
-                </div>
+          <StatCard
+            label="Today's Status"
+            icon={Clock}
+            value={
+              todayAttendance ? (
+                <StatusPill status={todayAttendance.status} size="md" />
               ) : (
-                <p className="text-sm text-slate-400">
-                  {isSundayToday ? 'Day off' : 'Not checked in'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                <StatusPill
+                  status="not_checked_in"
+                  label={isSundayToday ? 'Day off' : 'Not checked in'}
+                  size="md"
+                />
+              )
+            }
+            hint={
+              todayAttendance?.check_in_at ? (
+                <span>
+                  In{' '}
+                  <span className="numeric text-foreground">
+                    {formatTime(todayAttendance.check_in_at)}
+                  </span>
+                  {todayAttendance.check_out_at && (
+                    <>
+                      {' · Out '}
+                      <span className="numeric text-foreground">
+                        {formatTime(todayAttendance.check_out_at)}
+                      </span>
+                    </>
+                  )}
+                </span>
+              ) : undefined
+            }
+          />
 
           {/* Tasks */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <CheckSquare className="size-4" />
-                Today&apos;s Tasks
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-slate-900">
-                {taskCounts.total}
-              </p>
-              {taskCounts.total > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {taskCounts.todo > 0 && (
-                    <span className="text-xs text-slate-500">
-                      {taskCounts.todo} todo
-                    </span>
-                  )}
-                  {taskCounts.in_progress > 0 && (
-                    <span className="text-xs text-blue-600">
-                      {taskCounts.in_progress} in progress
-                    </span>
-                  )}
-                  {taskCounts.blocked > 0 && (
-                    <span className="text-xs text-red-600">
-                      {taskCounts.blocked} blocked
-                    </span>
-                  )}
-                  {taskCounts.done > 0 && (
-                    <span className="text-xs text-green-600">
-                      {taskCounts.done} done
-                    </span>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Today's Tasks"
+            icon={CheckSquare}
+            value={taskCounts.total}
+            hint={
+              taskCounts.total > 0
+                ? `${taskCounts.done} of ${taskCounts.total} done`
+                : 'No tasks assigned'
+            }
+          >
+            {taskCounts.total > 0 && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                {taskCounts.todo > 0 && (
+                  <StatusCount status="todo" count={taskCounts.todo} />
+                )}
+                {taskCounts.in_progress > 0 && (
+                  <StatusCount
+                    status="in_progress"
+                    count={taskCounts.in_progress}
+                  />
+                )}
+                {taskCounts.blocked > 0 && (
+                  <StatusCount status="blocked" count={taskCounts.blocked} />
+                )}
+                {taskCounts.done > 0 && (
+                  <StatusCount status="done" count={taskCounts.done} />
+                )}
+              </div>
+            )}
+          </StatCard>
 
           {/* EOD Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <FileText className="size-4" />
-                EOD Report
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isSundayToday ? (
-                <p className="text-sm text-slate-400">
-                  Not required on Sunday
-                </p>
+          <StatCard
+            label="EOD Report"
+            icon={FileText}
+            value={
+              isSundayToday ? (
+                <StatusPill status="not_required" label="Not required" size="md" />
               ) : todayEOD ? (
-                <div className="space-y-1">
-                  <Badge
-                    variant="outline"
-                    className={cn('text-sm', statusBadgeClass(todayEOD.status))}
-                  >
-                    {statusLabel(todayEOD.status)}
-                  </Badge>
-                  <p className="text-xs text-slate-400">
-                    Submitted at {formatTime(todayEOD.submitted_at)}
-                  </p>
-                </div>
+                <StatusPill status={todayEOD.status} size="md" />
               ) : (
-                <div>
-                  <p className="text-sm text-amber-600 font-medium">
-                    Not submitted
-                  </p>
-                  <Link
-                    href="/reports"
-                    className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                  >
-                    Submit EOD <ArrowRight className="size-3" />
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                <StatusPill status="not_submitted" size="md" />
+              )
+            }
+            hint={
+              isSundayToday
+                ? 'Today is Sunday'
+                : todayEOD
+                  ? (
+                      <span>
+                        Submitted at{' '}
+                        <span className="numeric text-foreground">
+                          {formatTime(todayEOD.submitted_at)}
+                        </span>
+                      </span>
+                    )
+                  : (
+                      <Link
+                        href="/reports"
+                        className={`${LINK_CLASSES} inline-flex items-center gap-1`}
+                      >
+                        Submit EOD
+                        <ArrowRight className="size-3" />
+                      </Link>
+                    )
+            }
+          />
 
           {/* Sales metrics (if sales dept) */}
           {isSalesDept(department) ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <Target className="size-4" />
-                  Leads &amp; Calls
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-blue-700">
-                      {(todayMetrics as any)?.leads ?? 0}
-                    </p>
-                    <p className="text-xs text-slate-400">Leads</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-green-700">
-                      {(todayMetrics as any)?.calls ?? 0}
-                    </p>
-                    <p className="text-xs text-slate-400">Calls</p>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>Leads target: 5</span>
-                    <span>
-                      {todayMetrics
-                        ? Math.round(((todayMetrics as any).leads / 5) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-                  <div className="mt-0.5 h-1.5 w-full rounded-full bg-slate-100">
-                    <div
-                      className="h-1.5 rounded-full bg-blue-500"
-                      style={{
-                        width: `${Math.min(
-                          todayMetrics
-                            ? ((todayMetrics as any).leads / 5) * 100
-                            : 0,
-                          100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard
+              label="Leads & Calls"
+              icon={Target}
+              iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+              value={todayMetrics?.leads ?? 0}
+              valueClassName={toneText('partial')}
+              hint={
+                <span>
+                  <span className="numeric font-medium text-foreground">
+                    {todayMetrics?.calls ?? 0}
+                  </span>{' '}
+                  calls today
+                </span>
+              }
+            >
+              <BulletChart
+                value={todayMetrics?.leads ?? 0}
+                target={salesLeadsTarget}
+                label="Leads"
+                tone="partial"
+              />
+            </StatCard>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <Building2 className="size-4" />
-                  Department
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold text-slate-900">
-                  {department?.name ?? 'Unassigned'}
-                </p>
-              </CardContent>
-            </Card>
+            <StatCard
+              label="Department"
+              icon={Building2}
+              value={department?.name ?? 'Unassigned'}
+            />
           )}
-        </div>
-
-        {/* Quick actions */}
-        {!isSundayToday && (
-          <div className="flex flex-wrap gap-3">
-            {!todayAttendance && (
-              <Link href="/attendance">
-                <Button>
-                  <LogIn className="size-4" />
-                  Check In
-                </Button>
-              </Link>
-            )}
-            {todayAttendance &&
-              (todayAttendance as any).check_in_at &&
-              !(todayAttendance as any).check_out_at && (
-                <Link href="/attendance">
-                  <Button variant="outline">
-                    <LogOut className="size-4" />
-                    Check Out
-                  </Button>
-                </Link>
-              )}
-            {!todayEOD && todayAttendance && (
-              <Link href="/reports">
-                <Button variant="secondary">
-                  <FileText className="size-4" />
-                  Submit EOD
-                </Button>
-              </Link>
-            )}
-          </div>
-        )}
+        </section>
 
         {/* Today's tasks detail */}
         {taskCounts.total > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <ClipboardList className="size-4" />
-                Task Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                {(
-                  ['todo', 'in_progress', 'blocked', 'done'] as const
-                ).map((s) => {
+          <ListCard
+            icon={ClipboardList}
+            title="Task Breakdown"
+            action={
+              <Link href="/tasks" className={LINK_CLASSES}>
+                View all
+              </Link>
+            }
+          >
+            <ListRows>
+              {(['todo', 'in_progress', 'blocked', 'done'] as const).map(
+                (s) => {
                   const count = taskCounts[s]
                   if (count === 0 && s !== 'todo') return null
                   return (
-                    <div key={s} className="flex items-center gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className={cn('text-xs', statusBadgeClass(s))}
-                      >
-                        {statusLabel(s)}
-                      </Badge>
-                      <span className="text-sm font-medium text-slate-700">
+                    <ListRow key={s}>
+                      <StatusPill status={s} />
+                      <span className="numeric text-sm font-semibold text-foreground">
                         {count}
                       </span>
-                    </div>
+                    </ListRow>
                   )
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                },
+              )}
+            </ListRows>
+          </ListCard>
         )}
       </div>
     )
@@ -622,8 +471,8 @@ export default async function DashboardPage() {
     }
 
     // Department targets for sales
-    const deptLeadsTarget = (department as any)?.leads_target ?? 0
-    const deptCallsTarget = (department as any)?.calls_target ?? 0
+    const deptLeadsTarget = department?.leads_target ?? 0
+    const deptCallsTarget = department?.calls_target ?? 0
 
     const totalUsers = (deptUsers ?? []).length
     const presentCount = (deptAttendance ?? []).filter(
@@ -633,296 +482,239 @@ export default async function DashboardPage() {
     const absentCount = totalUsers - presentCount
     const eodSubmitted = (deptEODs ?? []).length
 
+    // Presentational: sales aggregates + targets (default of 5 when unset)
+    const deptLeadsTotal =
+      deptMetrics?.reduce((sum, m) => sum + m.leads, 0) ?? 0
+    const deptCallsTotal =
+      deptMetrics?.reduce((sum, m) => sum + m.calls, 0) ?? 0
+    const salesLeadsTarget = deptLeadsTarget > 0 ? deptLeadsTarget : 5
+    const salesCallsTarget = deptCallsTarget > 0 ? deptCallsTarget : 5
+
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {department?.name ?? 'Team'} Dashboard
-          </h1>
-          <p className="text-sm text-slate-500">
-            {totalUsers} team member{totalUsers !== 1 ? 's' : ''} • Today&apos;s
-            overview
-          </p>
-        </div>
+        <PageHeader
+          title={`${department?.name ?? 'Team'} Dashboard`}
+          description={`${totalUsers} team member${totalUsers !== 1 ? 's' : ''} · Today's overview · ${formatDate(today)}`}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href="/api/export/attendance" />} nativeButton={false}
+            >
+              <Download className="size-3.5" />
+              Export Attendance CSV
+            </Button>
+          }
+        />
 
         {/* Stats grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <UserCheck className="size-4" />
-                Present Today
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-green-700">
-                {presentCount}
-              </p>
-              <p className="text-xs text-slate-400">out of {totalUsers}</p>
-            </CardContent>
-          </Card>
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Present Today"
+            icon={UserCheck}
+            iconClassName="border-status-positive/25 bg-status-positive/10 text-status-positive"
+            value={presentCount}
+            valueClassName={toneText('positive')}
+            hint={`out of ${totalUsers} team member${totalUsers !== 1 ? 's' : ''}`}
+          >
+            <BulletChart value={presentCount} target={totalUsers} label="Present" />
+          </StatCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <UserX className="size-4" />
-                Absent Today
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-red-700">{absentCount}</p>
-              <p className="text-xs text-slate-400">not checked in</p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Absent Today"
+            icon={UserX}
+            iconClassName="border-status-negative/25 bg-status-negative/10 text-status-negative"
+            value={absentCount}
+            valueClassName={toneText('negative')}
+            hint="not checked in yet"
+          />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <FileText className="size-4" />
-                EOD Submitted
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-blue-700">
-                {eodSubmitted}
-              </p>
-              <p className="text-xs text-slate-400">out of {totalUsers}</p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="EOD Submitted"
+            icon={FileText}
+            iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+            value={eodSubmitted}
+            valueClassName={toneText('partial')}
+            hint={`out of ${totalUsers} team member${totalUsers !== 1 ? 's' : ''}`}
+          >
+            <BulletChart
+              value={eodSubmitted}
+              target={totalUsers}
+              label="EOD"
+              tone="partial"
+            />
+          </StatCard>
 
           {isSalesDept(department) ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <BarChart3 className="size-4" />
-                  Sales Today
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-blue-700">
-                      {deptMetrics?.reduce(
-                        (sum, m) => sum + (m as any).leads,
-                        0,
-                      ) ?? 0}
-                    </p>
-                    <p className="text-xs text-slate-400">Leads</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-green-700">
-                      {deptMetrics?.reduce(
-                        (sum, m) => sum + (m as any).calls,
-                        0,
-                      ) ?? 0}
-                    </p>
-                    <p className="text-xs text-slate-400">Calls</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard
+              label="Sales Today"
+              icon={BarChart3}
+              iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+              value={deptLeadsTotal}
+              valueClassName={toneText('partial')}
+              hint={
+                <span>
+                  <span className="numeric font-medium text-foreground">
+                    {deptCallsTotal}
+                  </span>{' '}
+                  calls today
+                </span>
+              }
+            >
+              <div className="space-y-3">
+                <BulletChart
+                  value={deptLeadsTotal}
+                  target={salesLeadsTarget}
+                  label="Leads"
+                  tone="partial"
+                />
+                <BulletChart
+                  value={deptCallsTotal}
+                  target={salesCallsTarget}
+                  label="Calls"
+                />
+              </div>
+            </StatCard>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <TrendingUp className="size-4" />
-                  Attendance Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-slate-900">
-                  {totalUsers > 0
-                    ? Math.round((presentCount / totalUsers) * 100)
-                    : 0}
-                  %
-                </p>
-                <p className="text-xs text-slate-400">
-                  attendance rate today
-                </p>
-              </CardContent>
-            </Card>
+            <StatCard
+              label="Attendance Rate"
+              icon={TrendingUp}
+              value={`${totalUsers > 0 ? Math.round((presentCount / totalUsers) * 100) : 0}%`}
+              hint="attendance rate today"
+            />
           )}
-        </div>
+        </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* Team + compliance */}
+        <section className="grid gap-4 lg:grid-cols-2">
           {/* Team Attendance Today */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <Users className="size-4" />
-                Team Attendance Today
-              </CardTitle>
-              <Link
-                href="/attendance"
-                className="text-xs text-blue-600 hover:underline"
-              >
+          <ListCard
+            icon={Users}
+            title="Team Attendance Today"
+            action={
+              <Link href="/attendance" className={LINK_CLASSES}>
                 View all
               </Link>
-            </CardHeader>
-            <CardContent className="p-0">
-              {!deptUsers || deptUsers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                  <Users className="size-6 mb-1" />
-                  <p className="text-sm">No team members</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {deptUsers.map((u: AppUser) => {
-                    const att = attendanceMap.get(u.id)
-                    return (
-                      <div
-                        key={u.id}
-                        className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-sm font-medium text-slate-900 truncate">
-                            {u.name}
-                          </span>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'text-xs shrink-0',
-                            att
-                              ? statusBadgeClass(att.status)
-                              : statusBadgeClass('absent'),
-                          )}
-                        >
-                          {att ? statusLabel(att.status) : 'Absent'}
-                        </Badge>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            }
+          >
+            {!deptUsers || deptUsers.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="No team members"
+                description="There is no one in your department to show."
+              />
+            ) : (
+              <ListRows>
+                {deptUsers.map((u: AppUser) => {
+                  const att = attendanceMap.get(u.id)
+                  return (
+                    <ListRow key={u.id}>
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {u.name}
+                      </span>
+                      <StatusPill
+                        status={att ? att.status : 'absent'}
+                        className="shrink-0"
+                      />
+                    </ListRow>
+                  )
+                })}
+              </ListRows>
+            )}
+          </ListCard>
 
           {/* EOD Compliance + Overdue Tasks */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* EOD non-submitters */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <AlertCircle className="size-4" />
-                  EOD Pending ({nonSubmitters.length})
-                </CardTitle>
-                <Link
-                  href="/reports"
-                  className="text-xs text-blue-600 hover:underline"
-                >
+            <ListCard
+              icon={AlertCircle}
+              title={`EOD Pending (${nonSubmitters.length})`}
+              action={
+                <Link href="/reports" className={LINK_CLASSES}>
                   Reports
                 </Link>
-              </CardHeader>
-              <CardContent className="p-0">
-                {nonSubmitters.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-green-600">
-                    All team members have submitted their EOD today!
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {nonSubmitters.slice(0, 8).map((u: AppUser) => (
-                      <div
-                        key={u.id}
-                        className="flex items-center justify-between px-4 py-2.5"
-                      >
-                        <span className="text-sm text-slate-900">
-                          {u.name}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className="bg-red-100 text-red-800 border-red-300 text-xs"
-                        >
-                          Missing
-                        </Badge>
-                      </div>
-                    ))}
-                    {nonSubmitters.length > 8 && (
-                      <div className="px-4 py-2 text-xs text-slate-400">
-                        +{nonSubmitters.length - 8} more
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              }
+            >
+              {nonSubmitters.length === 0 ? (
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="All EODs submitted"
+                  description="Every team member has submitted their EOD today."
+                />
+              ) : (
+                <ListRows>
+                  {nonSubmitters.slice(0, 8).map((u: AppUser) => (
+                    <ListRow key={u.id}>
+                      <span className="truncate text-sm text-foreground">
+                        {u.name}
+                      </span>
+                      <StatusPill
+                        status="not_submitted"
+                        label="Missing"
+                        className="shrink-0"
+                      />
+                    </ListRow>
+                  ))}
+                  {nonSubmitters.length > 8 && (
+                    <div className="px-5 py-2 text-xs text-muted-foreground">
+                      <span className="numeric font-medium">
+                        +{nonSubmitters.length - 8}
+                      </span>{' '}
+                      more
+                    </div>
+                  )}
+                </ListRows>
+              )}
+            </ListCard>
 
             {/* Overdue Tasks */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <Timer className="size-4" />
-                  Overdue Tasks
-                </CardTitle>
-                <Link
-                  href="/tasks"
-                  className="text-xs text-blue-600 hover:underline"
-                >
+            <ListCard
+              icon={Timer}
+              title="Overdue Tasks"
+              action={
+                <Link href="/tasks" className={LINK_CLASSES}>
                   View all
                 </Link>
-              </CardHeader>
-              <CardContent className="p-0">
-                {!overdueTasks || overdueTasks.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-slate-400">
-                    No overdue tasks — great job team!
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {overdueTasks.slice(0, 8).map((t: any) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-slate-900">
-                            {t.title}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {userNameMap.get(t.assigned_to) ?? 'Unknown'} • Due{' '}
+              }
+            >
+              {!overdueTasks || overdueTasks.length === 0 ? (
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="No overdue tasks"
+                  description="Great job — nothing is past due in your team."
+                />
+              ) : (
+                <ListRows>
+                  {overdueTasks.slice(0, 8).map((t: any) => (
+                    <ListRow key={t.id}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {t.title}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {userNameMap.get(t.assigned_to) ?? 'Unknown'} · Due{' '}
+                          <span className="numeric">
                             {formatDate(t.due_date!)}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'text-xs shrink-0 ml-2',
-                            statusBadgeClass(t.priority),
-                          )}
-                        >
-                          {priorityLabel(t.priority)}
-                        </Badge>
+                          </span>
+                        </p>
                       </div>
-                    ))}
-                    {overdueTasks.length > 8 && (
-                      <div className="px-4 py-2 text-xs text-slate-400">
-                        +{overdueTasks.length - 8} more
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      <StatusPill status={t.priority} className="shrink-0" />
+                    </ListRow>
+                  ))}
+                  {overdueTasks.length > 8 && (
+                    <div className="px-5 py-2 text-xs text-muted-foreground">
+                      <span className="numeric font-medium">
+                        +{overdueTasks.length - 8}
+                      </span>{' '}
+                      more
+                    </div>
+                  )}
+                </ListRows>
+              )}
+            </ListCard>
           </div>
-        </div>
-
-        {/* --- Admin: Export quick link --- */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Download className="size-4" />
-              Quick Export
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link href="/api/export/attendance">
-              <Button variant="outline" size="sm">
-                <Download className="size-4" />
-                Export Attendance CSV
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        </section>
       </div>
     )
   }
@@ -1125,570 +917,398 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Organisation Dashboard
-        </h1>
-        <p className="text-sm text-slate-500">
-          Company-wide overview for {formatDate(today)}
-        </p>
-      </div>
+      <PageHeader
+        title="Organisation Dashboard"
+        description={`Company-wide overview for ${formatDate(today)}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href="/api/export/attendance" />} nativeButton={false}
+            >
+              <Download className="size-3.5" />
+              Attendance CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href="/api/export/eod" />} nativeButton={false}
+            >
+              <Download className="size-3.5" />
+              EOD CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href="/api/export/weekly" />} nativeButton={false}
+            >
+              <Download className="size-3.5" />
+              Weekly CSV
+            </Button>
+          </>
+        }
+      />
 
       {/* Key metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Users className="size-4" />
-              Total Employees
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-slate-900">
-              {totalEmployees ?? 0}
-            </p>
-            <p className="text-xs text-slate-400">active accounts</p>
-          </CardContent>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total Employees"
+          icon={Users}
+          value={totalEmployees ?? 0}
+          hint="active accounts"
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Building2 className="size-4" />
-              Departments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-slate-900">
-              {totalDepartments ?? 0}
-            </p>
-            <p className="text-xs text-slate-400">active departments</p>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Departments"
+          icon={Building2}
+          value={totalDepartments ?? 0}
+          hint="across the organisation"
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <UserCheck className="size-4" />
-              Present Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-700">
-              {presentToday ?? 0}
-            </p>
-            <div className="mt-1 flex items-center gap-1">
-              <div className="h-1.5 flex-1 rounded-full bg-slate-100">
-                <div
-                  className="h-1.5 rounded-full bg-green-500"
-                  style={{ width: `${attendanceRate}%` }}
-                />
-              </div>
-              <span className="text-xs text-slate-400">
-                {attendanceRate}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Present Today"
+          icon={UserCheck}
+          iconClassName="border-status-positive/25 bg-status-positive/10 text-status-positive"
+          value={presentToday ?? 0}
+          valueClassName={toneText('positive')}
+          hint={`${attendanceRate}% attendance rate`}
+        >
+          <BulletChart
+            value={presentToday ?? 0}
+            target={totalEmployees ?? 0}
+            label="Present"
+          />
+        </StatCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <FileText className="size-4" />
-              EOD Submitted
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-blue-700">
-              {eodSubmittedToday ?? 0}
-            </p>
-            <p className="text-xs text-slate-400">
-              of {totalEmployees ?? 0} employees
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+        <StatCard
+          label="EOD Submitted"
+          icon={FileText}
+          iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+          value={eodSubmittedToday ?? 0}
+          valueClassName={toneText('partial')}
+          hint={`of ${totalEmployees ?? 0} employees`}
+        >
+          <BulletChart
+            value={eodSubmittedToday ?? 0}
+            target={totalEmployees ?? 0}
+            label="EOD"
+            tone="partial"
+          />
+        </StatCard>
+      </section>
 
       {/* --- Phase 6: This Week Stats --- */}
-      <div>
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-          This Week
+      <section className="space-y-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          This week
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <FileText className="size-4" />
-                Weekly Reports
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-slate-900">
-                {weeklyReportsThisWeek ?? 0}
-              </p>
-              <p className="text-xs text-slate-400">generated this week</p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Weekly Reports"
+            icon={FileText}
+            value={weeklyReportsThisWeek ?? 0}
+            hint="generated this week"
+          />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <Target className="size-4" />
-                Leads This Week
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-blue-700">
-                {totalLeadsWeek}
-              </p>
-              <p className="text-xs text-slate-400">
-                Mon–Sat aggregate
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Leads This Week"
+            icon={Target}
+            iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+            value={totalLeadsWeek}
+            valueClassName={toneText('partial')}
+            hint="Mon–Sat aggregate"
+          />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <BarChart3 className="size-4" />
-                Calls This Week
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-green-700">
-                {totalCallsWeek}
-              </p>
-              <p className="text-xs text-slate-400">
-                Mon–Sat aggregate
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Calls This Week"
+            icon={BarChart3}
+            iconClassName="border-status-positive/25 bg-status-positive/10 text-status-positive"
+            value={totalCallsWeek}
+            valueClassName={toneText('positive')}
+            hint="Mon–Sat aggregate"
+          />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <TrendingUp className="size-4" />
-                Avg Attendance
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-slate-900">
-                {avgAttendanceRate}%
-              </p>
-              <p className="text-xs text-slate-400">this week</p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Avg Attendance"
+            icon={TrendingUp}
+            value={`${avgAttendanceRate}%`}
+            hint="this week"
+          />
         </div>
-      </div>
+      </section>
 
       {/* Department overview + EOD Compliance */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-2">
         {/* Department overview */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Building2 className="size-4" />
-              Departments Overview
-            </CardTitle>
-            <Link
-              href="/admin/departments"
-              className="text-xs text-blue-600 hover:underline"
-            >
+        <ListCard
+          icon={Building2}
+          title="Departments Overview"
+          action={
+            <Link href="/admin/departments" className={LINK_CLASSES}>
               Manage
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {!allDepartments || allDepartments.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-slate-400">
-                No departments created yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {allDepartments.map((d: Department) => (
-                  <div
-                    key={d.id}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">
-                        {d.name}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {deptMemberCounts[d.id] ?? 0} members
-                    </Badge>
+          }
+        >
+          {!allDepartments || allDepartments.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title="No departments yet"
+              description="No departments have been created."
+            />
+          ) : (
+            <ListRows>
+              {allDepartments.map((d: Department) => (
+                <ListRow key={d.id}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {d.name}
+                    </span>
+                    {!d.is_active && (
+                      <StatusPill status="inactive" className="shrink-0" />
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    <span className="numeric font-medium text-foreground">
+                      {deptMemberCounts[d.id] ?? 0}
+                    </span>{' '}
+                    members
+                  </span>
+                </ListRow>
+              ))}
+            </ListRows>
+          )}
+        </ListCard>
 
         {/* --- Phase 6: EOD Compliance Widget --- */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <CheckSquare className="size-4" />
-              EOD Compliance Today
-            </CardTitle>
-            <Link
-              href="/reports"
-              className="text-xs text-blue-600 hover:underline"
-            >
+        <ListCard
+          icon={CheckSquare}
+          title="EOD Compliance Today"
+          action={
+            <Link href="/reports" className={LINK_CLASSES}>
               View all
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {!allActiveUsers || allActiveUsers.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-slate-400">
-                No employees found.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
-                {allActiveUsers.map(
-                  (u: {
-                    id: string
-                    name: string
-                    email: string
-                    department_id: string | null
-                  }) => {
-                    const eodStatus = eodSubmitterMap.get(u.id)
-                    const isSubmitted = eodStatus === 'submitted'
-                    const isLate = eodStatus === 'late'
-                    const isMissed = eodStatus === 'missed' || !eodStatus
+          }
+        >
+          {!allActiveUsers || allActiveUsers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No employees found"
+              description="No active employee accounts to show."
+            />
+          ) : (
+            <ListRows className="max-h-[400px] overflow-y-auto">
+              {allActiveUsers.map(
+                (u: {
+                  id: string
+                  name: string
+                  email: string
+                  department_id: string | null
+                }) => {
+                  const eodStatus = eodSubmitterMap.get(u.id)
+                  const isSubmitted = eodStatus === 'submitted'
+                  const isLate = eodStatus === 'late'
+                  const isMissed = eodStatus === 'missed' || !eodStatus
 
-                    return (
-                      <div
-                        key={u.id}
-                        className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {u.name}
-                          </p>
-                          <p className="text-xs text-slate-400 truncate">
-                            {deptNameMap.get(u.department_id ?? '') ??
-                              'No dept'}
-                          </p>
-                        </div>
-                        {isSubmitted ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-green-100 text-green-800 border-green-300 text-xs shrink-0"
-                          >
-                            <CheckCircle2 className="size-3 mr-1" />
-                            Submitted
-                          </Badge>
-                        ) : isLate ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-amber-100 text-amber-800 border-amber-300 text-xs shrink-0"
-                          >
-                            <AlertCircle className="size-3 mr-1" />
-                            Late
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="bg-red-100 text-red-800 border-red-300 text-xs shrink-0"
-                          >
-                            <XCircle className="size-3 mr-1" />
-                            {isMissed ? 'Missed' : 'Missing'}
-                          </Badge>
-                        )}
+                  return (
+                    <ListRow key={u.id}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {u.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {deptNameMap.get(u.department_id ?? '') ?? 'No dept'}
+                        </p>
                       </div>
-                    )
-                  },
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                      {isSubmitted ? (
+                        <StatusPill status="submitted" className="shrink-0" />
+                      ) : isLate ? (
+                        <StatusPill status="late" className="shrink-0" />
+                      ) : (
+                        <StatusPill
+                          status={isMissed ? 'missed' : 'not_submitted'}
+                          label={isMissed ? 'Missed' : 'Missing'}
+                          className="shrink-0"
+                        />
+                      )}
+                    </ListRow>
+                  )
+                },
+              )}
+            </ListRows>
+          )}
+        </ListCard>
+      </section>
 
       {/* --- Phase 6: Sales Department Metrics Comparison --- */}
       {salesDeptAggregates.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Target className="size-4" />
-              Sales Department Metrics — Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {salesDeptAggregates.map((agg) => (
-                <div key={agg.dept.id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-slate-700">
-                      {agg.dept.name}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {agg.leads} / {agg.leadsTarget} leads • {agg.calls} /{' '}
-                      {agg.callsTarget} calls
-                    </span>
-                  </div>
-
-                  {/* Leads progress */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-xs text-slate-500 w-12 shrink-0">
-                      Leads
-                    </span>
-                    <div className="h-2 flex-1 rounded-full bg-slate-100">
-                      <div
-                        className="h-2 rounded-full bg-blue-500 transition-all"
-                        style={{
-                          width: `${Math.min(
-                            agg.leadsTarget > 0
-                              ? (agg.leads / agg.leadsTarget) * 100
-                              : 0,
-                            100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-400 w-10 text-right">
-                      {agg.leadsTarget > 0
-                        ? Math.round((agg.leads / agg.leadsTarget) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-
-                  {/* Calls progress */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 w-12 shrink-0">
-                      Calls
-                    </span>
-                    <div className="h-2 flex-1 rounded-full bg-slate-100">
-                      <div
-                        className="h-2 rounded-full bg-green-500 transition-all"
-                        style={{
-                          width: `${Math.min(
-                            agg.callsTarget > 0
-                              ? (agg.calls / agg.callsTarget) * 100
-                              : 0,
-                            100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-400 w-10 text-right">
-                      {agg.callsTarget > 0
-                        ? Math.round((agg.calls / agg.callsTarget) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
+        <ListCard icon={Target} title="Sales Department Metrics — Today">
+          <ListRows>
+            {salesDeptAggregates.map((agg) => {
+              // Presentational target fallback — default of 5 when unset
+              const leadsTarget = agg.leadsTarget > 0 ? agg.leadsTarget : 5
+              const callsTarget = agg.callsTarget > 0 ? agg.callsTarget : 5
+              return (
+                <div key={agg.dept.id} className="space-y-3 px-5 py-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {agg.dept.name}
+                  </p>
+                  <BulletChart
+                    value={agg.leads}
+                    target={leadsTarget}
+                    label="Leads"
+                    tone="partial"
+                  />
+                  <BulletChart
+                    value={agg.calls}
+                    target={callsTarget}
+                    label="Calls"
+                  />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              )
+            })}
+          </ListRows>
+        </ListCard>
       )}
 
       {/* --- Phase 6: Recent Weekly Reports --- */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <CalendarDays className="size-4" />
-              Recent Weekly Reports
-            </CardTitle>
-            <Link
-              href="/reports"
-              className="text-xs text-blue-600 hover:underline"
-            >
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ListCard
+          icon={CalendarDays}
+          title="Recent Weekly Reports"
+          action={
+            <Link href="/reports" className={LINK_CLASSES}>
               All reports
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
-            {!recentWeeklyReports || recentWeeklyReports.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-slate-400">
-                No weekly reports generated yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {recentWeeklyReports.map((wr: any) => (
-                  <div
-                    key={wr.id}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">
-                        Week of {formatDate(wr.week_start)}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {wr.days_present ?? 0} days •{' '}
-                        {wr.leads_total ?? 0} leads •{' '}
-                        {wr.calls_total ?? 0} calls •{' '}
-                        {wr.tasks_completed ?? 0} tasks
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {wr.eod_submitted ?? 0} EODs
-                    </Badge>
+          }
+        >
+          {!recentWeeklyReports || recentWeeklyReports.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="No weekly reports"
+              description="Weekly reports will appear here once generated."
+            />
+          ) : (
+            <ListRows>
+              {recentWeeklyReports.map((wr: any) => (
+                <ListRow key={wr.id}>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      Week of {formatDate(wr.week_start)}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      <span className="numeric">{wr.days_present ?? 0}</span>{' '}
+                      days ·{' '}
+                      <span className="numeric">{wr.leads_total ?? 0}</span>{' '}
+                      leads ·{' '}
+                      <span className="numeric">{wr.calls_total ?? 0}</span>{' '}
+                      calls ·{' '}
+                      <span className="numeric">
+                        {wr.tasks_completed ?? 0}
+                      </span>{' '}
+                      tasks
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    <span className="numeric font-medium text-foreground">
+                      {wr.eod_submitted ?? 0}
+                    </span>{' '}
+                    EODs
+                  </span>
+                </ListRow>
+              ))}
+            </ListRows>
+          )}
+        </ListCard>
 
         {/* EOD Pending + Quick Links */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Non-submitters today */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <AlertCircle className="size-4" />
-                EOD Pending ({orgNonSubmitters.length})
-              </CardTitle>
-              <Link
-                href="/reports"
-                className="text-xs text-blue-600 hover:underline"
-              >
+          <ListCard
+            icon={AlertCircle}
+            title={`EOD Pending (${orgNonSubmitters.length})`}
+            action={
+              <Link href="/reports" className={LINK_CLASSES}>
                 Reports
               </Link>
-            </CardHeader>
-            <CardContent className="p-0">
-              {orgNonSubmitters.length === 0 ? (
-                <div className="px-4 py-4 text-sm text-green-600">
-                  All employees have submitted EOD today!
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
-                  {orgNonSubmitters
-                    .slice(0, 10)
-                    .map(
-                      (u: {
-                        id: string
-                        name: string
-                        email: string
-                      }) => (
-                        <div
-                          key={u.id}
-                          className="flex items-center justify-between px-4 py-2.5"
-                        >
-                          <div>
-                            <p className="text-sm text-slate-900">
-                              {u.name}
-                            </p>
-                            <p className="text-xs text-slate-400">
-                              {u.email}
-                            </p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="bg-red-100 text-red-800 border-red-300 text-xs"
-                          >
-                            Missing
-                          </Badge>
+            }
+          >
+            {orgNonSubmitters.length === 0 ? (
+              <EmptyState
+                icon={CheckCircle2}
+                title="All EODs submitted"
+                description="Every employee has submitted their EOD today."
+              />
+            ) : (
+              <ListRows className="max-h-[300px] overflow-y-auto">
+                {orgNonSubmitters
+                  .slice(0, 10)
+                  .map(
+                    (u: {
+                      id: string
+                      name: string
+                      email: string
+                    }) => (
+                      <ListRow key={u.id}>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {u.name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {u.email}
+                          </p>
                         </div>
-                      ),
-                    )}
-                  {orgNonSubmitters.length > 10 && (
-                    <div className="px-4 py-2 text-xs text-slate-400">
-                      +{orgNonSubmitters.length - 10} more
-                    </div>
+                        <StatusPill
+                          status="not_submitted"
+                          label="Missing"
+                          className="shrink-0"
+                        />
+                      </ListRow>
+                    ),
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* --- Phase 6: Export Quick Links --- */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <Download className="size-4" />
-                Export Data
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-2">
-                <Link href="/api/export/attendance">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Download className="size-4" />
-                    Export Attendance CSV
-                  </Button>
-                </Link>
-                <Link href="/api/export/eod">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Download className="size-4" />
-                    Export EOD Reports CSV
-                  </Button>
-                </Link>
-                <Link href="/api/export/weekly">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Download className="size-4" />
-                    Export Weekly Reports CSV
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+                {orgNonSubmitters.length > 10 && (
+                  <div className="px-5 py-2 text-xs text-muted-foreground">
+                    <span className="numeric font-medium">
+                      +{orgNonSubmitters.length - 10}
+                    </span>{' '}
+                    more
+                  </div>
+                )}
+              </ListRows>
+            )}
+          </ListCard>
 
           {/* Quick Links */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                <ChevronRight className="size-4" />
-                Quick Links
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                <Link href="/users">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Users className="size-4" />
-                    Manage Users
-                  </Button>
-                </Link>
-                <Link href="/admin/departments">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Building2 className="size-4" />
-                    Manage Departments
-                  </Button>
-                </Link>
-                <Link href="/attendance">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <Clock className="size-4" />
-                    Attendance
-                  </Button>
-                </Link>
-                <Link href="/reports">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                  >
-                    <FileText className="size-4" />
-                    Reports
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+          <ListCard icon={ChevronRight} title="Quick Links">
+            <div className="grid grid-cols-1 gap-2 p-5 sm:grid-cols-2">
+              <Link href="/admin/users">
+                <Button variant="outline" className="w-full justify-start">
+                  <Users className="size-4" />
+                  Manage Users
+                </Button>
+              </Link>
+              <Link href="/admin/departments">
+                <Button variant="outline" className="w-full justify-start">
+                  <Building2 className="size-4" />
+                  Manage Departments
+                </Button>
+              </Link>
+              <Link href="/attendance">
+                <Button variant="outline" className="w-full justify-start">
+                  <Clock className="size-4" />
+                  Attendance
+                </Button>
+              </Link>
+              <Link href="/reports">
+                <Button variant="outline" className="w-full justify-start">
+                  <FileText className="size-4" />
+                  Reports
+                </Button>
+              </Link>
+            </div>
+          </ListCard>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

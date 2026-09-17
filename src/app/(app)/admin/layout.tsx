@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { PageHeader } from '@/components/page-header'
 import { AdminNav } from './admin-nav'
 
 export const dynamic = 'force-dynamic'
@@ -31,14 +32,10 @@ export default async function AdminLayout({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Admin Panel
-        </h1>
-        <p className="text-sm text-slate-500">
-          Manage users and departments for your organization.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin Panel"
+        description="Manage users and departments for your organization."
+      />
 
       <AdminNav role={profile.role} />
 

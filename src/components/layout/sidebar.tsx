@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, orgToday } from "@/lib/utils";
+import { DRAFT_CHANGE_EVENT } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { RoleBadge } from "@/components/status";
+import { openCommandPalette } from "@/components/palette-trigger";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import {
   LayoutDashboardIcon,
@@ -25,10 +26,10 @@ import {
   Building2Icon,
   LogOutIcon,
   MenuIcon,
-  XIcon,
+  SearchIcon,
 } from "lucide-react";
 
-interface SidebarProps {
+export interface SidebarProps {
   user: {
     id: string;
     email?: string;
@@ -38,64 +39,28 @@ interface SidebarProps {
   };
 }
 
-const navItems = [
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboardIcon,
-    roles: ["employee", "admin", "super_admin"],
-  },
-  {
-    href: "/attendance",
-    label: "Attendance",
-    icon: ClockIcon,
-    roles: ["employee", "admin", "super_admin"],
-  },
-  {
-    href: "/tasks",
-    label: "Tasks",
-    icon: CheckSquareIcon,
-    roles: ["employee", "admin", "super_admin"],
-  },
-  {
-    href: "/reports",
-    label: "Reports",
-    icon: FileTextIcon,
-    roles: ["employee", "admin", "super_admin"],
-  },
-  {
-    href: "/admin/users",
-    label: "Users",
-    icon: UsersIcon,
-    roles: ["admin", "super_admin"],
-  },
-  {
-    href: "/admin/departments",
-    label: "Departments",
-    icon: Building2Icon,
-    roles: ["admin", "super_admin"],
-  },
-];
+const WORK_ITEMS = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
+  { href: "/attendance", label: "Attendance", icon: ClockIcon },
+  { href: "/tasks", label: "Tasks", icon: CheckSquareIcon },
+  { href: "/reports", label: "Reports", icon: FileTextIcon },
+] as const;
 
-function roleBadgeVariant(role: string) {
-  switch (role) {
-    case "super_admin":
-      return "default" as const;
-    case "admin":
-      return "secondary" as const;
-    default:
-      return "ghost" as const;
-  }
-}
+const ADMIN_ITEMS = [
+  { href: "/admin/users", label: "Users", icon: UsersIcon },
+  { href: "/admin/departments", label: "Departments", icon: Building2Icon },
+] as const;
 
-function roleLabel(role: string) {
-  switch (role) {
-    case "super_admin":
-      return "Super Admin";
-    case "admin":
-      return "Admin";
-    default:
-      return "Employee";
+/** LocalStorage draft keys mirrored onto the nav (must match the pages'
+ *  useDraft keys). The EOD draft is day-scoped, the task draft is not. */
+const EOD_DRAFT_KEY_PREFIX = "weblaze-ems:eod-draft:";
+const TASK_DRAFT_KEY = "weblaze-ems:task-draft";
+
+function readDraftExists(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -108,139 +73,320 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export default function Sidebar({ user }: SidebarProps) {
-  const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+function isActivePath(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(href + "/");
+}
 
-  const filteredNavItems = navItems.filter((item) =>
-    item.roles.includes(user.role),
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  active,
+  onNavigate,
+  draftHint,
+}: {
+  href: string;
+  label: string;
+  icon: typeof ClockIcon;
+  active: boolean;
+  onNavigate?: () => void;
+  /** An unsaved local draft exists for this section — badge dot. */
+  draftHint?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      title={draftHint ? `${label} — unsaved draft` : label}
+      className={cn(
+        "relative flex items-center gap-3 rounded-lg py-2 text-sm font-medium outline-none transition-colors duration-150",
+        "md:w-12 md:justify-center md:px-0 lg:w-full lg:justify-start lg:px-3",
+        "focus-visible:ring-2 focus-visible:ring-ring/70",
+        active
+          ? "bg-blue-500/15 text-blue-200"
+          : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
+      )}
+    >
+      {active ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-blue-400 md:left-1 lg:left-0"
+        />
+      ) : null}
+      <Icon className="size-4 shrink-0" />
+      <span className="truncate md:hidden lg:inline">{label}</span>
+      {/* Unsaved-draft badge — amber dot pinned to the item's top-right
+          corner; reads as a notification badge on the md icon rail and as
+          a row indicator at full width. */}
+      {draftHint ? (
+        <span
+          aria-hidden="true"
+          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-status-warning ring-2 ring-sidebar"
+        />
+      ) : null}
+      {draftHint ? (
+        <span className="sr-only">(unsaved draft)</span>
+      ) : null}
+    </Link>
   );
+}
 
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
+function SidebarContent({
+  user,
+  onNavigate,
+}: {
+  user: SidebarProps["user"];
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const isAdmin =
+    user.role === "admin" || user.role === "super_admin";
 
-  const sidebarContent = (
+  // Unsaved-draft indicators: checked post-mount (SSR renders no dot, so
+  // hydration stays consistent) and re-checked whenever a page saves or
+  // clears a draft (DRAFT_CHANGE_EVENT) or the org day rolls over.
+  const [draftHints, setDraftHints] = useState<{
+    eod: boolean;
+    task: boolean;
+  }>({ eod: false, task: false });
+
+  useEffect(() => {
+    const read = () => ({
+      eod: readDraftExists(`${EOD_DRAFT_KEY_PREFIX}${orgToday()}`),
+      task: readDraftExists(TASK_DRAFT_KEY),
+    });
+    const refresh = () => {
+      // Change-guarded so the minute tick never causes a pointless
+      // re-render while nothing changed.
+      setDraftHints((prev) => {
+        const next = read();
+        return prev.eod === next.eod && prev.task === next.task
+          ? prev
+          : next;
+      });
+    };
+    // Initial read is deferred (rAF) so the first paint matches the
+    // server-rendered dot-free markup — hydration stays consistent.
+    const raf = window.requestAnimationFrame(refresh);
+    // DRAFT_CHANGE_EVENT fires on every save/clear from any page's
+    // useDraft; the minute tick covers the org-day rolling over (the
+    // EOD key is day-scoped) while the tab sits idle.
+    window.addEventListener(DRAFT_CHANGE_EVENT, refresh);
+    const tick = window.setInterval(refresh, 60_000);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener(DRAFT_CHANGE_EVENT, refresh);
+      window.clearInterval(tick);
+    };
+  }, []);
+
+  return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex h-14 items-center gap-3 border-b border-slate-700/50 px-4">
+      {/* Logo */}
+      <div
+        className={cn(
+          "flex h-16 shrink-0 items-center gap-2.5 border-b border-white/5 px-4",
+          "md:justify-center lg:justify-start lg:px-5"
+        )}
+      >
         <Image
           src="/logo_dark.png"
           alt="Weblaze"
           width={560}
           height={136}
-          className="h-7 w-auto"
+          className="hidden h-7 w-auto lg:block"
           priority
         />
-        <span className="font-semibold text-base text-white">EMS</span>
+        <Image
+          src="/icon-192.png"
+          alt="Weblaze"
+          width={192}
+          height={192}
+          className="size-9 rounded-lg md:block lg:hidden"
+          priority
+        />
+        <span className="hidden text-sm font-semibold tracking-wide text-slate-300 lg:inline">
+          EMS
+        </span>
       </div>
 
-      {/* User info */}
-      <div className="border-b border-slate-700/50 px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Avatar size="sm">
-            <AvatarFallback className="bg-blue-600 text-white text-xs">
+      {/* Navigation */}
+      <nav
+        aria-label="Main navigation"
+        className="flex-1 overflow-y-auto px-2 py-4"
+      >
+        {/* Command palette trigger — icon at md rail, full row at lg */}
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          aria-label="Search (Ctrl K)"
+          aria-keyshortcuts="Control+K Meta+K"
+          title="Search (Ctrl K)"
+          className={cn(
+            "mb-3 flex w-full items-center gap-3 rounded-lg border border-white/5 bg-white/[0.03] py-2 text-sm font-medium text-slate-400 outline-none",
+            "transition-colors duration-150 hover:bg-white/5 hover:text-slate-200 focus-visible:ring-2 focus-visible:ring-ring/70",
+            "md:w-12 md:justify-center md:px-0 lg:w-full lg:justify-start lg:px-3"
+          )}
+        >
+          <SearchIcon className="size-4 shrink-0" />
+          <span className="hidden truncate lg:inline">Search…</span>
+          <kbd className="ml-auto hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-sans text-[10px] font-medium text-slate-500 lg:inline">
+            ⌘K
+          </kbd>
+        </button>
+
+        <p className="hidden px-3 pb-2 text-[10px] font-semibold tracking-[0.12em] text-slate-500 uppercase lg:block">
+          Work
+        </p>
+        <ul className="space-y-0.5">
+          {WORK_ITEMS.map((item) => (
+            <li key={item.href} className="md:flex md:justify-center lg:block">
+              <NavItem
+                {...item}
+                active={isActivePath(pathname, item.href)}
+                onNavigate={onNavigate}
+                draftHint={
+                  item.href === "/reports"
+                    ? draftHints.eod
+                    : item.href === "/tasks"
+                      ? draftHints.task
+                      : false
+                }
+              />
+            </li>
+          ))}
+        </ul>
+        {isAdmin ? (
+          <>
+            <p className="hidden px-3 pt-5 pb-2 text-[10px] font-semibold tracking-[0.12em] text-slate-500 uppercase lg:block">
+              Admin
+            </p>
+            <ul className="space-y-0.5 pt-1 md:pt-4 lg:pt-0">
+              {ADMIN_ITEMS.map((item) => (
+                <li
+                  key={item.href}
+                  className="md:flex md:justify-center lg:block"
+                >
+                  <NavItem
+                    {...item}
+                    active={isActivePath(pathname, item.href)}
+                    onNavigate={onNavigate}
+                  />
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </nav>
+
+      {/* User block + sign out */}
+      <div className="shrink-0 border-t border-white/5 p-3">
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-2 py-1.5",
+            "md:justify-center lg:justify-start"
+          )}
+        >
+          <Avatar>
+            <AvatarFallback className="bg-blue-500/15 text-xs font-semibold text-blue-200">
               {getInitials(user.name)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">
+          <div className="hidden min-w-0 flex-1 lg:block">
+            <p className="truncate text-sm font-medium text-slate-100">
               {user.name}
             </p>
-            <p className="truncate text-xs text-slate-400">
+            <p className="truncate text-xs text-slate-500">
               {user.department || user.email || ""}
             </p>
           </div>
         </div>
-        <div className="mt-2">
-          <Badge variant={roleBadgeVariant(user.role)} className="text-[10px]">
-            {roleLabel(user.role)}
-          </Badge>
+        <div className="mt-2 hidden lg:block">
+          <RoleBadge role={user.role} />
         </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
-        <ul className="space-y-0.5">
-          {filteredNavItems.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-blue-600/20 text-blue-300"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white",
-                  )}
-                >
-                  <item.icon className="size-4 shrink-0" />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-slate-700/50 p-2">
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-red-600/10 hover:text-red-400"
-        >
-          <LogOutIcon className="size-4 shrink-0" />
-          Sign out
-        </button>
+        <SignOutButton className="mt-2 md:justify-center lg:justify-start" />
       </div>
     </div>
   );
+}
+
+function SignOutButton({ className }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        window.location.href = "/login";
+      }}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 outline-none transition-colors duration-150",
+        "hover:bg-red-500/10 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-ring/70",
+        className
+      )}
+    >
+      <LogOutIcon className="size-4 shrink-0" />
+      <span className="md:hidden lg:inline">Sign out</span>
+    </button>
+  );
+}
+
+export default function Sidebar({ user }: SidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-slate-800">
-        <div className="flex h-full flex-col bg-slate-900">
-          {sidebarContent}
-        </div>
+      {/* Mobile top bar (sheet trigger) — full width, sticky. Respects the
+          iOS notch / standalone-PWA safe area at the top. */}
+      <div className="sticky top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-sidebar-border bg-sidebar pt-[env(safe-area-inset-top)] pl-4 pr-4 md:hidden print:hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-slate-300 hover:bg-white/5 hover:text-white"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation menu"
+        >
+          <MenuIcon className="size-5" />
+        </Button>
+        <Image
+          src="/logo_dark.png"
+          alt="Weblaze"
+          width={560}
+          height={136}
+          className="h-6 w-auto"
+          priority
+        />
+        <span className="ml-auto text-xs font-medium text-slate-500">EMS</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 text-slate-400 hover:bg-white/5 hover:text-white"
+          onClick={openCommandPalette}
+          aria-label="Search (Ctrl K)"
+          aria-keyshortcuts="Control+K Meta+K"
+        >
+          <SearchIcon className="size-4.5" />
+        </Button>
+      </div>
+
+      {/* Desktop sidebar: icon rail at md, full at lg */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[72px] flex-col bg-sidebar md:flex lg:w-64 print:hidden">
+        <SidebarContent user={user} />
       </aside>
 
-      {/* Mobile sidebar (Sheet) */}
-      <div className="lg:hidden">
+      {/* Mobile navigation sheet */}
+      <div className="md:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="fixed left-3 top-3 z-40 text-slate-400 hover:text-white"
-                aria-label="Open menu"
-              />
-            }
-          >
-            <MenuIcon className="size-5" />
-          </SheetTrigger>
           <SheetContent
             side="left"
-            className="w-64 p-0 bg-slate-900 border-r border-slate-700/50"
+            className="w-72 border-sidebar-border bg-sidebar p-0"
             showCloseButton={false}
           >
             <SheetHeader className="sr-only">
-              <SheetTitle>Navigation Menu</SheetTitle>
+              <SheetTitle>Navigation menu</SheetTitle>
             </SheetHeader>
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-3 right-3 z-50 rounded-md p-1 text-slate-400 hover:text-white hover:bg-slate-800"
-              aria-label="Close menu"
-            >
-              <XIcon className="size-5" />
-            </button>
-            {sidebarContent}
+            <SidebarContent user={user} onNavigate={() => setMobileOpen(false)} />
           </SheetContent>
         </Sheet>
       </div>

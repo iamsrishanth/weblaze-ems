@@ -2,22 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  AlertCircleIcon,
-  RefreshCwIcon,
-  CalendarIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  FileTextIcon,
+  RefreshCw,
+  Calendar,
+  CheckCircle,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  FileText,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/page-header'
+import { EmptyState, ErrorState, ListCardSkeleton } from '@/components/states'
 
 import { getWeeklyReports } from '../actions'
 import type { WeeklyReport } from '@/types'
@@ -60,67 +57,41 @@ export default function WeeklyReportsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Weekly Reports
-          </h1>
-          <p className="text-sm text-slate-500">
-            Auto-generated weekly performance summaries
-          </p>
-        </div>
-        <Button variant="ghost" size="icon-sm" onClick={loadReports}>
-          <RefreshCwIcon
-            className={cn('size-4', loading && 'animate-spin')}
-          />
-        </Button>
-      </div>
+      <PageHeader
+        title="Weekly Reports"
+        description="Auto-generated weekly performance summaries"
+        actions={
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={loadReports}
+            aria-label="Refresh weekly reports"
+          >
+            <RefreshCw
+              className={cn('size-4', loading && 'animate-spin')}
+            />
+          </Button>
+        }
+      />
 
       {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <RefreshCwIcon className="mx-auto size-8 animate-spin text-slate-400" />
-            <p className="mt-3 text-sm text-slate-500">
-              Loading weekly reports...
-            </p>
-          </div>
-        </div>
-      )}
+      {loading && <ListCardSkeleton rows={5} />}
 
       {/* Error */}
       {!loading && error && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <AlertCircleIcon className="mx-auto size-8 text-red-400" />
-            <p className="mt-2 text-sm text-red-600">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={loadReports}
-            >
-              Retry
-            </Button>
-          </CardContent>
+        <Card className="gap-0 py-0">
+          <ErrorState description={error} onRetry={loadReports} />
         </Card>
       )}
 
       {/* Empty */}
       {!loading && !error && reports.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100">
-              <FileTextIcon className="size-6 text-slate-400" />
-            </div>
-            <h3 className="mt-4 text-sm font-medium text-slate-900">
-              No weekly reports yet
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Weekly reports are auto-generated at the end of each week based
-              on your EOD submissions.
-            </p>
-          </CardContent>
+        <Card className="gap-0 py-0">
+          <EmptyState
+            icon={FileText}
+            title="No weekly reports yet"
+            description="Weekly reports are auto-generated at the end of each week based on your EOD submissions."
+          />
         </Card>
       )}
 
@@ -128,11 +99,18 @@ export default function WeeklyReportsPage() {
       {!loading && !error && reports.length > 0 && (
         <div className="space-y-3">
           {reports.map((report) => (
-            <Card key={report.id} size="sm">
-              <CardContent className="py-3">
+            <Card key={report.id} className="gap-0 py-4">
+              <CardContent className="px-5">
                 <div className="flex items-start gap-3">
                   <button
-                    className="mt-0.5 text-slate-400 hover:text-slate-600"
+                    type="button"
+                    aria-label={
+                      expandedId === report.id
+                        ? 'Collapse week details'
+                        : 'Expand week details'
+                    }
+                    aria-expanded={expandedId === report.id}
+                    className="mt-0.5 rounded-md text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     onClick={() =>
                       setExpandedId(
                         expandedId === report.id ? null : report.id
@@ -140,30 +118,36 @@ export default function WeeklyReportsPage() {
                     }
                   >
                     {expandedId === report.id ? (
-                      <ChevronUpIcon className="size-4" />
+                      <ChevronUp className="size-4" />
                     ) : (
-                      <ChevronDownIcon className="size-4" />
+                      <ChevronDown className="size-4" />
                     )}
                   </button>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="size-4 text-slate-400" />
-                        <span className="text-sm font-medium text-slate-900">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Calendar className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">
                           Week of {formatDate(report.week_start)}
                         </span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-muted-foreground">
                           to {formatDate(report.week_end)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <CheckCircleIcon className="size-3 text-green-500" />
-                          {report.tasks_completed} tasks
+                      <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle className="size-3.5" />
+                          <span className="numeric font-semibold text-foreground">
+                            {report.tasks_completed}
+                          </span>{' '}
+                          tasks
                         </span>
-                        <span className="flex items-center gap-1">
-                          <ClockIcon className="size-3 text-blue-500" />
-                          {report.days_present}d present
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="size-3.5" />
+                          <span className="numeric font-semibold text-foreground">
+                            {report.days_present}
+                          </span>
+                          d present
                         </span>
                       </div>
                     </div>
@@ -171,38 +155,44 @@ export default function WeeklyReportsPage() {
                     {expandedId === report.id && (
                       <div className="mt-3 space-y-3">
                         {report.employee_note && (
-                          <div className="rounded-md bg-slate-50 p-3">
-                            <h4 className="mb-1 text-xs font-medium text-slate-500 uppercase">
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                               Employee Note
                             </h4>
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                            <p className="mt-1.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                               {report.employee_note}
                             </p>
                           </div>
                         )}
 
                         <div className="grid grid-cols-3 gap-3">
-                          <div className="rounded-md bg-green-50 p-2 text-center">
-                            <p className="text-xs text-green-600">Tasks</p>
-                            <p className="text-lg font-bold text-green-700">
+                          <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                            <p className="text-xs text-muted-foreground">
+                              Tasks
+                            </p>
+                            <p className="numeric mt-0.5 text-lg font-semibold text-foreground">
                               {report.tasks_completed}
                             </p>
                           </div>
-                          <div className="rounded-md bg-blue-50 p-2 text-center">
-                            <p className="text-xs text-blue-600">EODs Submitted</p>
-                            <p className="text-lg font-bold text-blue-700">
+                          <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                            <p className="text-xs text-muted-foreground">
+                              EODs Submitted
+                            </p>
+                            <p className="numeric mt-0.5 text-lg font-semibold text-foreground">
                               {report.eod_submitted}/6
                             </p>
                           </div>
-                          <div className="rounded-md bg-purple-50 p-2 text-center">
-                            <p className="text-xs text-purple-600">Days Present</p>
-                            <p className="text-lg font-bold text-purple-700">
+                          <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                            <p className="text-xs text-muted-foreground">
+                              Days Present
+                            </p>
+                            <p className="numeric mt-0.5 text-lg font-semibold text-foreground">
                               {report.days_present}
                             </p>
                           </div>
                         </div>
 
-                        <p className="text-xs text-slate-400">
+                        <p className="numeric text-xs text-muted-foreground">
                           Generated on{' '}
                           {formatDate(report.generated_at)}
                         </p>

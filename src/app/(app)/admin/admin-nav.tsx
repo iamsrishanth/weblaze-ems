@@ -30,18 +30,24 @@ export function AdminNav({ role }: AdminNavProps) {
   const visibleTabs = tabs.filter((t) => t.roles.includes(role))
 
   return (
-    <nav className="flex gap-1 border-b border-slate-200 pb-0">
+    <nav
+      aria-label="Admin sections"
+      className="flex gap-1 border-b border-border"
+    >
       {visibleTabs.map((tab) => {
-        const isActive = pathname === tab.href || pathname.startsWith(tab.href + '/')
+        const isActive =
+          pathname === tab.href || pathname.startsWith(tab.href + '/')
         return (
           <Link
             key={tab.href}
             href={tab.href}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'flex items-center gap-2 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px]',
+              '-mb-px flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors duration-150',
+              'rounded-t-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
               isActive
-                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                ? 'border-blue-400 bg-blue-500/10 text-blue-200'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             <tab.icon className="size-4" />

@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/sidebar";
+import CommandPalette from "@/components/command-palette";
+import ConnectivityToast from "@/components/connectivity-toast";
+import { Toaster } from "@/components/ui/sonner";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +44,15 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
+      {/* Skip-to-content — hidden until focused (a11y keyboard shortcut).
+          Uses the app (dark) tokens so it fits whichever surface it lands on. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-foreground focus:shadow-xl focus:ring-2 focus:ring-ring/60 focus:outline-none print:hidden"
+      >
+        Skip to main content
+      </a>
       <Sidebar
         user={{
           id: user.id,
@@ -51,11 +62,23 @@ export default async function AppLayout({
           department: userDepartment,
         }}
       />
-      <main className="flex-1 overflow-x-hidden bg-slate-50">
-        {/* Top padding for mobile to account for fixed menu button */}
-        <div className="lg:hidden h-12" />
-        <div className="p-4 md:p-6 lg:p-8">{children}</div>
-      </main>
+      {/* Content column — offset for the fixed sidebar (rail at md, full at lg).
+          Offsets reset in print (sidebar is print:hidden). */}
+      <div className="flex min-h-screen flex-col md:pl-[72px] lg:pl-64 md:print:pl-0 lg:print:pl-0">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 outline-none md:px-6 md:py-8 lg:px-8 print:px-0 print:py-0"
+        >
+          {children}
+        </main>
+      </div>
+      {/* Command palette (Ctrl/Cmd+K) — global quick nav, role-aware */}
+      <CommandPalette role={userRole} />
+      {/* Offline/online transition toasts (renders nothing) */}
+      <ConnectivityToast />
+      {/* Toasts portal to <body>, which carries the dark app tokens */}
+      <Toaster theme="dark" />
     </div>
   );
 }

@@ -7,23 +7,42 @@ import {
   LogOut,
   Calendar,
   CheckCircle,
-  AlertCircle,
   Users,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  Loader2,
+  Download,
+  Hourglass,
+  Timer,
+  X,
 } from 'lucide-react'
 
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from '@/components/ui/tabs'
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+} from '@/components/ui/table'
+import { DataTable, Th, Td } from '@/components/data-table'
+import { PageHeader } from '@/components/page-header'
+import { StatCard } from '@/components/stat-card'
+import {
+  StatusPill,
+  toneText,
+  statusTone,
+} from '@/components/status'
+import {
+  EmptyState,
+  TableSkeleton,
+  StatGridSkeleton,
+} from '@/components/states'
 import { cn, formatDate, formatTime, orgToday } from '@/lib/utils'
 
 import type { AppUser, Department, Attendance, GeoPoint } from '@/types'
@@ -37,29 +56,9 @@ import {
   checkOut,
 } from './actions'
 
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function statusBadgeClass(status: string) {
-  switch (status) {
-    case 'present':
-      return 'bg-green-100 text-green-800 border-green-300'
-    case 'late':
-      return 'bg-amber-100 text-amber-800 border-amber-300'
-    case 'half_day':
-      return 'bg-orange-100 text-orange-800 border-orange-300'
-    case 'absent':
-      return 'bg-red-100 text-red-800 border-red-300'
-    default:
-      return 'bg-slate-100 text-slate-800 border-slate-300'
-  }
-}
-
-function statusLabel(status: string) {
-  return status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 function monthLabel(month: string) {
   // "2026-05" → "May 2026"
@@ -95,6 +94,9 @@ function calculateHours(checkIn: string | null, checkOut: string | null): number
   const end = new Date(checkOut).getTime()
   return Math.round(((end - start) / (1000 * 60 * 60)) * 100) / 100
 }
+
+const inputClass =
+  'h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors duration-150 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40'
 
 // ---------------------------------------------------------------------------
 // Page Component
@@ -212,7 +214,9 @@ export default function AttendancePage() {
       }
       if (!cancelled) setTeamLoading(false)
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [isAdmin, teamDate, refreshKey])
 
   // -----------------------------------------------------------------------
@@ -314,8 +318,15 @@ export default function AttendancePage() {
   // -----------------------------------------------------------------------
   if (!profile) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="size-6 animate-spin text-slate-400" />
+      <div className="space-y-6">
+        <div className="mb-6">
+          <div className="h-8 w-48 animate-pulse rounded-lg bg-foreground/[0.07]" />
+          <div className="mt-2 h-4 w-64 animate-pulse rounded bg-foreground/[0.07]" />
+        </div>
+        <StatGridSkeleton count={3} />
+        <Card className="gap-0 py-0">
+          <TableSkeleton rows={6} />
+        </Card>
       </div>
     )
   }
@@ -325,39 +336,42 @@ export default function AttendancePage() {
   // -----------------------------------------------------------------------
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Attendance
-          </h1>
-          <p className="text-sm text-slate-500">
-            {isAdmin
-              ? 'Track your team attendance'
-              : 'Track your daily attendance'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <a href="/api/export/attendance" className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-            Download CSV
-          </a>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="size-3.5" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Attendance"
+        description={`${isAdmin ? 'Track your team attendance' : 'Track your daily attendance'} · ${formatDate(orgToday())}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href="/api/export/attendance" />} nativeButton={false}
+            >
+              <Download className="size-3.5" />
+              Download CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              <RefreshCw className="size-3.5" />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="size-4 shrink-0" />
-          {error}
+        <div
+          role="alert"
+          className="flex items-center gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          <Clock className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">{error}</span>
           <button
+            type="button"
             onClick={() => setError(null)}
-            className="ml-auto text-red-400 hover:text-red-600"
+            aria-label="Dismiss error"
+            className="rounded-md p-1 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive"
           >
-            ✕
+            <X className="size-4" />
           </button>
         </div>
       )}
@@ -387,44 +401,47 @@ export default function AttendancePage() {
         <TabsContent value="today" className="mt-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Check-in Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <LogIn className="size-4" />
-                  Check In
+            <Card className="gap-0 py-5">
+              <CardHeader className="px-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                  <span className="flex size-7 items-center justify-center rounded-md border border-status-positive/25 bg-status-positive/10 text-status-positive">
+                    <LogIn className="size-3.5" />
+                  </span>
+                  Check in
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-5">
                 {todayLoading ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <Loader2 className="size-4 animate-spin text-slate-400" />
-                    <span className="text-sm text-slate-400">Loading...</span>
+                  <div className="space-y-2 py-1">
+                    <div className="h-9 w-28 animate-pulse rounded-md bg-foreground/[0.07]" />
+                    <div className="h-3 w-36 animate-pulse rounded bg-foreground/[0.07]" />
                   </div>
                 ) : todayRecord?.check_in_at ? (
-                  <div className="space-y-1">
-                    <p className="text-lg font-bold text-green-700">
+                  <div>
+                    <p className="numeric text-3xl font-semibold tracking-tight text-foreground">
                       {formatTime(todayRecord.check_in_at)}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      Checked in at {formatTime(todayRecord.check_in_at)}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDate(todayRecord.work_date)} · recorded
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       You haven&apos;t checked in yet today.
                     </p>
                     <Button
                       onClick={handleCheckIn}
                       disabled={actionLoading === 'in'}
-                      className="w-full"
+                      size="lg"
+                      className="h-10 w-full"
                     >
                       {actionLoading === 'in' ? (
-                        <Loader2 className="size-4 animate-spin" />
+                        <RefreshCw className="size-4 animate-spin" />
                       ) : (
                         <LogIn className="size-4" />
                       )}
-                      Check In Now
+                      Check in now
                     </Button>
                   </div>
                 )}
@@ -432,49 +449,54 @@ export default function AttendancePage() {
             </Card>
 
             {/* Check-out Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <LogOut className="size-4" />
-                  Check Out
+            <Card className="gap-0 py-5">
+              <CardHeader className="px-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                  <span className="flex size-7 items-center justify-center rounded-md border border-border/60 bg-muted/50 text-muted-foreground">
+                    <LogOut className="size-3.5" />
+                  </span>
+                  Check out
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-5">
                 {todayLoading ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <Loader2 className="size-4 animate-spin text-slate-400" />
-                    <span className="text-sm text-slate-400">Loading...</span>
+                  <div className="space-y-2 py-1">
+                    <div className="h-9 w-28 animate-pulse rounded-md bg-foreground/[0.07]" />
+                    <div className="h-3 w-36 animate-pulse rounded bg-foreground/[0.07]" />
                   </div>
                 ) : todayRecord?.check_out_at ? (
-                  <div className="space-y-1">
-                    <p className="text-lg font-bold text-blue-700">
+                  <div>
+                    <p className="numeric text-3xl font-semibold tracking-tight text-foreground">
                       {formatTime(todayRecord.check_out_at)}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      Checked out at {formatTime(todayRecord.check_out_at)}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {todayRecord.check_in_at &&
+                        `Total ${calculateHours(todayRecord.check_in_at, todayRecord.check_out_at)}h`}{' '}
+                      · recorded
                     </p>
                   </div>
                 ) : todayRecord?.check_in_at ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       Still working. Ready to leave?
                     </p>
                     <Button
                       onClick={handleCheckOut}
                       disabled={actionLoading === 'out'}
                       variant="outline"
-                      className="w-full"
+                      size="lg"
+                      className="h-10 w-full"
                     >
                       {actionLoading === 'out' ? (
-                        <Loader2 className="size-4 animate-spin" />
+                        <RefreshCw className="size-4 animate-spin" />
                       ) : (
                         <LogOut className="size-4" />
                       )}
-                      Check Out
+                      Check out
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400">
+                  <p className="py-2 text-sm text-muted-foreground/70">
                     Check in first to enable check-out.
                   </p>
                 )}
@@ -482,45 +504,58 @@ export default function AttendancePage() {
             </Card>
 
             {/* Status Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <CheckCircle className="size-4" />
-                  Status
+            <Card className="gap-0 py-5 md:col-span-2 lg:col-span-1">
+              <CardHeader className="px-5">
+                <CardTitle className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                  <span className="flex size-7 items-center justify-center rounded-md border border-border/60 bg-muted/50 text-muted-foreground">
+                    <CheckCircle className="size-3.5" />
+                  </span>
+                  Today&apos;s status
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-5">
                 {todayLoading ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <Loader2 className="size-4 animate-spin text-slate-400" />
-                    <span className="text-sm text-slate-400">Loading...</span>
+                  <div className="space-y-2 py-1">
+                    <div className="h-6 w-24 animate-pulse rounded-full bg-foreground/[0.07]" />
+                    <div className="h-3 w-40 animate-pulse rounded bg-foreground/[0.07]" />
                   </div>
                 ) : todayRecord ? (
-                  <div className="space-y-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'text-sm font-medium',
-                        statusBadgeClass(todayRecord.status)
-                      )}
-                    >
-                      {statusLabel(todayRecord.status)}
-                    </Badge>
-                    {todayRecord.check_in_at && todayRecord.check_out_at && (
-                      <p className="text-sm text-slate-500">
-                        Hours worked:{' '}
-                        <span className="font-semibold text-slate-900">
-                          {calculateHours(
-                            todayRecord.check_in_at,
-                            todayRecord.check_out_at
-                          )}{' '}
-                          hrs
+                  <div className="space-y-2.5">
+                    <StatusPill
+                      status={todayRecord.status}
+                      size="md"
+                      className="text-xs"
+                    />
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>
+                        In{' '}
+                        <span className="numeric text-foreground">
+                          {todayRecord.check_in_at
+                            ? formatTime(todayRecord.check_in_at)
+                            : '—'}
+                        </span>{' '}
+                        · Out{' '}
+                        <span className="numeric text-foreground">
+                          {todayRecord.check_out_at
+                            ? formatTime(todayRecord.check_out_at)
+                            : '—'}
                         </span>
                       </p>
-                    )}
+                      {todayRecord.check_in_at && todayRecord.check_out_at && (
+                        <p>
+                          Hours worked:{' '}
+                          <span className="numeric font-semibold text-foreground">
+                            {calculateHours(
+                              todayRecord.check_in_at,
+                              todayRecord.check_out_at
+                            )}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-amber-600">
+                  <p className="py-2 text-sm text-status-warning">
                     Not checked in today.
                   </p>
                 )}
@@ -541,21 +576,19 @@ export default function AttendancePage() {
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  onClick={() =>
-                    setHistoryMonth(prevMonth(historyMonth))
-                  }
+                  aria-label="Previous month"
+                  onClick={() => setHistoryMonth(prevMonth(historyMonth))}
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
-                <span className="min-w-[120px] text-center text-sm font-medium text-slate-700">
+                <span className="numeric min-w-[128px] text-center text-sm font-medium text-foreground">
                   {monthLabel(historyMonth)}
                 </span>
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  onClick={() =>
-                    setHistoryMonth(nextMonth(historyMonth))
-                  }
+                  aria-label="Next month"
+                  onClick={() => setHistoryMonth(nextMonth(historyMonth))}
                 >
                   <ChevronRight className="size-4" />
                 </Button>
@@ -565,12 +598,11 @@ export default function AttendancePage() {
               {isAdmin && users.length > 1 && (
                 <select
                   value={historyUserId ?? ''}
-                  onChange={(e) =>
-                    setHistoryUserId(e.target.value || null)
-                  }
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  onChange={(e) => setHistoryUserId(e.target.value || null)}
+                  aria-label="Filter history by user"
+                  className={inputClass}
                 >
-                  <option value="">My History</option>
+                  <option value="">My history</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
@@ -581,109 +613,100 @@ export default function AttendancePage() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Card size="sm">
-                <CardContent className="py-2">
-                  <p className="text-xs text-slate-500">Present</p>
-                  <p className="text-lg font-bold text-green-600">
-                    {historyStats.present}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardContent className="py-2">
-                  <p className="text-xs text-slate-500">Late</p>
-                  <p className="text-lg font-bold text-amber-600">
-                    {historyStats.late}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardContent className="py-2">
-                  <p className="text-xs text-slate-500">Half Day</p>
-                  <p className="text-lg font-bold text-orange-600">
-                    {historyStats.halfDay}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardContent className="py-2">
-                  <p className="text-xs text-slate-500">Avg Hours</p>
-                  <p className="text-lg font-bold text-blue-600">
-                    {history.length > 0
-                      ? (historyStats.totalHours / history.length).toFixed(1)
-                      : '--'}
-                  </p>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
+              <StatCard
+                label="Present"
+                value={historyStats.present}
+                icon={CheckCircle}
+                iconClassName="border-status-positive/25 bg-status-positive/10 text-status-positive"
+                valueClassName={toneText(statusTone('present'))}
+              />
+              <StatCard
+                label="Late"
+                value={historyStats.late}
+                icon={Clock}
+                iconClassName="border-status-warning/25 bg-status-warning/10 text-status-warning"
+                valueClassName={toneText(statusTone('late'))}
+              />
+              <StatCard
+                label="Half day"
+                value={historyStats.halfDay}
+                icon={Hourglass}
+                iconClassName="border-status-partial/25 bg-status-partial/10 text-status-partial"
+                valueClassName={toneText(statusTone('half_day'))}
+              />
+              <StatCard
+                label="Avg hours"
+                value={
+                  history.length > 0
+                    ? (historyStats.totalHours / history.length).toFixed(1)
+                    : '—'
+                }
+                icon={Timer}
+                hint={`${historyStats.totalHours.toFixed(1)}h total`}
+              />
             </div>
 
-            {/* History list */}
-            <Card>
-              <CardContent className="p-0">
-                {historyLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="size-5 animate-spin text-slate-400" />
-                  </div>
-                ) : history.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                    <Calendar className="size-8 mb-2" />
-                    <p className="text-sm">No attendance records found</p>
-                    <p className="text-xs mt-1">
-                      {historyUserId
-                        ? 'This user has no records for this month.'
-                        : 'You have no records for this month.'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
+            {/* History table */}
+            {historyLoading ? (
+              <Card className="gap-0 py-0">
+                <TableSkeleton rows={8} />
+              </Card>
+            ) : history.length === 0 ? (
+              <Card className="gap-0 py-0">
+                <EmptyState
+                  icon={Calendar}
+                  title="No attendance records found"
+                  description={
+                    historyUserId
+                      ? 'This user has no records for this month.'
+                      : 'You have no records for this month.'
+                  }
+                />
+              </Card>
+            ) : (
+              <DataTable>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <Th>Date</Th>
+                      <Th>Check in</Th>
+                      <Th>Check out</Th>
+                      <Th align="right">Hours</Th>
+                      <Th align="right">Status</Th>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {history.map((record) => (
-                      <div
-                        key={record.id}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="text-sm">
-                            <p className="font-medium text-slate-900">
-                              {formatDate(record.work_date)}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {record.check_in_at
-                                ? formatTime(record.check_in_at)
-                                : '--'}
-                              {' — '}
-                              {record.check_out_at
-                                ? formatTime(record.check_out_at)
-                                : '--'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {record.check_in_at && record.check_out_at && (
-                            <span className="text-xs text-slate-500">
-                              {calculateHours(
+                      <TableRow key={record.id}>
+                        <Td className="font-medium text-foreground">
+                          {formatDate(record.work_date)}
+                        </Td>
+                        <Td numeric className="text-muted-foreground">
+                          {record.check_in_at
+                            ? formatTime(record.check_in_at)
+                            : '—'}
+                        </Td>
+                        <Td numeric className="text-muted-foreground">
+                          {record.check_out_at
+                            ? formatTime(record.check_out_at)
+                            : '—'}
+                        </Td>
+                        <Td numeric align="right" className="text-foreground">
+                          {record.check_in_at && record.check_out_at
+                            ? calculateHours(
                                 record.check_in_at,
                                 record.check_out_at
-                              )}{' '}
-                              hrs
-                            </span>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'text-xs',
-                              statusBadgeClass(record.status)
-                            )}
-                          >
-                            {statusLabel(record.status)}
-                          </Badge>
-                        </div>
-                      </div>
+                              )
+                            : '—'}
+                        </Td>
+                        <Td align="right">
+                          <StatusPill status={record.status} />
+                        </Td>
+                      </TableRow>
                     ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  </TableBody>
+                </DataTable>
+            )}
           </div>
         </TabsContent>
 
@@ -694,16 +717,22 @@ export default function AttendancePage() {
           <TabsContent value="team" className="mt-4">
             <div className="space-y-4">
               {/* Date selector */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-500">Date:</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label
+                  htmlFor="team-date"
+                  className="text-sm text-muted-foreground"
+                >
+                  Date
+                </label>
                 <input
+                  id="team-date"
                   type="date"
                   value={teamDate}
                   onChange={(e) => {
                     setTeamDate(e.target.value)
                     // team data will reload via the effect on isAdmin + teamDate
                   }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={cn(inputClass, 'numeric')}
                 />
                 <Button
                   variant="outline"
@@ -714,83 +743,78 @@ export default function AttendancePage() {
                 </Button>
               </div>
 
-              {/* Team list */}
-              <Card>
-                <CardContent className="p-0">
-                  {teamLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="size-5 animate-spin text-slate-400" />
-                    </div>
-                  ) : teamData.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                      <Users className="size-8 mb-2" />
-                      <p className="text-sm">
-                        No team members found for this date.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {teamData.map((member) => (
-                        <div
-                          key={member.user_id}
-                          className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {member.user_name}
-                            </p>
-                            <p className="text-xs text-slate-400">
-                              {member.user_email}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {member.attendance ? (
-                              <>
-                                <span className="text-xs text-slate-500">
-                                  {member.attendance.check_in_at
-                                    ? formatTime(
-                                        member.attendance.check_in_at
-                                      )
-                                    : '--'}
-                                  {' — '}
-                                  {member.attendance.check_out_at
-                                    ? formatTime(
-                                        member.attendance.check_out_at
-                                      )
-                                    : '--'}
-                                </span>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    'text-xs',
-                                    statusBadgeClass(
-                                      member.attendance.status
-                                    )
-                                  )}
-                                >
-                                  {statusLabel(
-                                    member.attendance.status
-                                  )}
-                                </Badge>
-                              </>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'text-xs',
-                                  statusBadgeClass('absent')
-                                )}
-                              >
-                                Absent
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Team table */}
+              {teamLoading ? (
+                <Card className="gap-0 py-0">
+                  <TableSkeleton rows={6} />
+                </Card>
+              ) : teamData.length === 0 ? (
+                <Card className="gap-0 py-0">
+                  <EmptyState
+                    icon={Users}
+                    title="No team members found"
+                    description="There is no one in your team to show for this date."
+                  />
+                </Card>
+              ) : (
+                <DataTable>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <Th>Member</Th>
+                        <Th>Check in</Th>
+                        <Th>Check out</Th>
+                        <Th align="right">Hours</Th>
+                        <Th align="right">Status</Th>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teamData.map((member) => {
+                        const hours =
+                          member.attendance?.check_in_at &&
+                          member.attendance?.check_out_at
+                            ? calculateHours(
+                                member.attendance.check_in_at,
+                                member.attendance.check_out_at
+                              )
+                            : null
+                        return (
+                          <TableRow key={member.user_id}>
+                            <Td>
+                              <p className="font-medium text-foreground">
+                                {member.user_name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {member.user_email}
+                              </p>
+                            </Td>
+                            <Td numeric className="text-muted-foreground">
+                              {member.attendance?.check_in_at
+                                ? formatTime(member.attendance.check_in_at)
+                                : '—'}
+                            </Td>
+                            <Td numeric className="text-muted-foreground">
+                              {member.attendance?.check_out_at
+                                ? formatTime(member.attendance.check_out_at)
+                                : '—'}
+                            </Td>
+                            <Td numeric align="right" className="text-foreground">
+                              {hours ?? '—'}
+                            </Td>
+                            <Td align="right">
+                              <StatusPill
+                                status={
+                                  member.attendance
+                                    ? member.attendance.status
+                                    : 'absent'
+                                }
+                              />
+                            </Td>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </DataTable>
+                )}
             </div>
           </TabsContent>
         )}

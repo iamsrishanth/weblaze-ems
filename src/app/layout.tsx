@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,7 +16,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#2563eb",
+  themeColor: "#0F172A",
 };
 
 export const metadata: Metadata = {
@@ -53,7 +52,8 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
-        <Toaster />
+        {/* <Toaster /> lives in the (auth) and (app) layouts: toasts portal to
+            <body> and need per-surface theme chrome (light vs dark). */}
       </body>
     </html>
   );

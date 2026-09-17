@@ -3,16 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
-  Table,
   TableBody,
-  TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -29,24 +26,25 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import {
-  PlusIcon,
-  Building2Icon,
-  UsersIcon,
-  TargetIcon,
-  PhoneIcon,
-  MoreHorizontalIcon,
-  Loader2Icon,
-  Edit2Icon,
-  AlertTriangleIcon,
-} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataTable, Th, Td } from '@/components/data-table'
+import { StatusPill } from '@/components/status'
+import { EmptyState, TableSkeleton } from '@/components/states'
+import {
+  PlusIcon,
+  Building2Icon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PowerIcon,
+  Trash2Icon,
+  Loader2Icon,
+  AlertTriangleIcon,
+} from 'lucide-react'
 import type { DepartmentWithStats } from './actions'
 import {
   getDepartments,
@@ -75,6 +73,10 @@ const emptyDeptForm: DeptFormData = {
   leads_target: '',
   calls_target: '',
 }
+
+// Control heights per the design system: h-10 form fields. The data-size
+// variant overrides the SelectTrigger's own scale.
+const fieldControlClass = 'h-10 w-full data-[size=default]:h-10'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -295,143 +297,124 @@ export default function DepartmentsClient({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
           {departments.length} department{departments.length !== 1 ? 's' : ''}
         </p>
-        <Button onClick={openAddDialog} size="sm">
+        <Button onClick={openAddDialog} className="h-9 shrink-0 px-4">
           <PlusIcon className="size-4" />
-          Add Department
+          Add department
         </Button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {loading && departments.length === 0 ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2Icon className="size-6 animate-spin text-slate-400" />
-          </div>
-        ) : departments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Building2Icon className="size-12 mb-2 opacity-30" />
-            <p className="text-sm">No departments yet.</p>
-            <p className="text-xs mt-1">
-              Click &ldquo;Add Department&rdquo; to create one.
-            </p>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Department</TableHead>
-                <TableHead>Head</TableHead>
-                <TableHead>Employees</TableHead>
-                <TableHead>Leads Target</TableHead>
-                <TableHead>Calls Target</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[60px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {departments.map((dept) => (
-                <TableRow key={dept.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                        <Building2Icon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-900">
-                          {dept.name}
+      {/* Departments table */}
+      {loading && departments.length === 0 ? (
+        <Card className="gap-0 py-0">
+          <TableSkeleton rows={6} />
+        </Card>
+      ) : departments.length === 0 ? (
+        <Card className="gap-0 py-0">
+          <EmptyState
+            icon={Building2Icon}
+            title="No departments yet"
+            description="Create your first department to organize users and targets."
+            action={
+              <Button onClick={openAddDialog} size="sm">
+                <PlusIcon className="size-3.5" />
+                Add department
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <DataTable>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <Th>Department</Th>
+              <Th align="right">Members</Th>
+              <Th align="right">Leads target</Th>
+              <Th align="right">Calls target</Th>
+              <Th align="right">Active</Th>
+              <Th className="w-[60px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {departments.map((dept) => (
+              <TableRow key={dept.id}>
+                <Td>
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50 text-muted-foreground">
+                      <Building2Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {dept.name}
+                      </p>
+                      {dept.head_name && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          Head · {dept.head_name}
                         </p>
-                        {dept.description && (
-                          <p className="truncate text-xs text-slate-400">
-                            {dept.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-slate-600">
-                      {dept.head_name || '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1 text-sm text-slate-600">
-                      <UsersIcon className="size-3.5 text-slate-400" />
-                      {dept.employee_count}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1 text-sm text-slate-600">
-                      <TargetIcon className="size-3.5 text-slate-400" />
-                      {dept.leads_target ?? '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-1 text-sm text-slate-600">
-                      <PhoneIcon className="size-3.5 text-slate-400" />
-                      {dept.calls_target ?? '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        dept.status === 'active' ? 'default' : 'secondary'
-                      }
-                      className={cn(
-                        dept.status === 'inactive' &&
-                          'bg-slate-100 text-slate-500'
                       )}
+                    </div>
+                  </div>
+                </Td>
+                <Td numeric align="right" className="text-foreground">
+                  {dept.employee_count}
+                </Td>
+                <Td numeric align="right" className="text-muted-foreground">
+                  {dept.leads_target ?? '—'}
+                </Td>
+                <Td numeric align="right" className="text-muted-foreground">
+                  {dept.calls_target ?? '—'}
+                </Td>
+                <Td align="right">
+                  <StatusPill status={dept.status} />
+                </Td>
+                <Td align="right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Actions for ${dept.name}`}
+                        />
+                      }
                     >
-                      {dept.status === 'active' ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon-sm" />
-                        }
+                      <MoreHorizontalIcon className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(dept)}>
+                        <PencilIcon className="size-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleToggleStatus(dept)}>
+                        <PowerIcon className="size-4" />
+                        {dept.status === 'active'
+                          ? 'Deactivate'
+                          : 'Activate'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => checkCanDelete(dept)}
                       >
-                        <MoreHorizontalIcon className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => openEditDialog(dept)}
-                        >
-                          <Edit2Icon className="size-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleToggleStatus(dept)}
-                        >
-                          {dept.status === 'active'
-                            ? 'Deactivate'
-                            : 'Activate'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => checkCanDelete(dept)}
-                          className="text-red-600"
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+                        <Trash2Icon className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </Td>
+              </TableRow>
+            ))}
+          </TableBody>
+        </DataTable>
+      )}
 
       {/* ───── Add Department Dialog ───── */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Department</DialogTitle>
+            <DialogTitle>Add department</DialogTitle>
             <DialogDescription>
               Create a new department in the organization.
             </DialogDescription>
@@ -447,9 +430,10 @@ export default function DepartmentsClient({
                 onChange={(e) =>
                   setForm({ ...form, name: e.target.value })
                 }
+                className="h-10"
               />
               {formErrors.name && (
-                <p className="text-xs text-red-600">{formErrors.name}</p>
+                <p className="text-xs text-destructive">{formErrors.name}</p>
               )}
             </div>
 
@@ -462,6 +446,7 @@ export default function DepartmentsClient({
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
                 }
+                className="h-10"
               />
             </div>
 
@@ -473,7 +458,7 @@ export default function DepartmentsClient({
                   setForm({ ...form, head_id: v === 'none' || v === null ? null : v })
                 }
               >
-                <SelectTrigger id="add-dept-head" className="w-full">
+                <SelectTrigger id="add-dept-head" className={fieldControlClass}>
                   <SelectValue placeholder="Select head" />
                 </SelectTrigger>
                 <SelectContent>
@@ -498,9 +483,10 @@ export default function DepartmentsClient({
                   onChange={(e) =>
                     setForm({ ...form, leads_target: e.target.value })
                   }
+                  className="h-10 numeric"
                 />
                 {formErrors.leads_target && (
-                  <p className="text-xs text-red-600">
+                  <p className="text-xs text-destructive">
                     {formErrors.leads_target}
                   </p>
                 )}
@@ -516,9 +502,10 @@ export default function DepartmentsClient({
                   onChange={(e) =>
                     setForm({ ...form, calls_target: e.target.value })
                   }
+                  className="h-10 numeric"
                 />
                 {formErrors.calls_target && (
-                  <p className="text-xs text-red-600">
+                  <p className="text-xs text-destructive">
                     {formErrors.calls_target}
                   </p>
                 )}
@@ -531,7 +518,7 @@ export default function DepartmentsClient({
               {formLoading && (
                 <Loader2Icon className="size-4 animate-spin" />
               )}
-              Create Department
+              Create department
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -541,7 +528,7 @@ export default function DepartmentsClient({
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Department</DialogTitle>
+            <DialogTitle>Edit department</DialogTitle>
             <DialogDescription>
               Update details for {editDept?.name}.
             </DialogDescription>
@@ -556,9 +543,10 @@ export default function DepartmentsClient({
                 onChange={(e) =>
                   setForm({ ...form, name: e.target.value })
                 }
+                className="h-10"
               />
               {formErrors.name && (
-                <p className="text-xs text-red-600">{formErrors.name}</p>
+                <p className="text-xs text-destructive">{formErrors.name}</p>
               )}
             </div>
 
@@ -570,6 +558,7 @@ export default function DepartmentsClient({
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
                 }
+                className="h-10"
               />
             </div>
 
@@ -581,7 +570,7 @@ export default function DepartmentsClient({
                   setForm({ ...form, head_id: v === 'none' || v === null ? null : v })
                 }
               >
-                <SelectTrigger id="edit-dept-head" className="w-full">
+                <SelectTrigger id="edit-dept-head" className={fieldControlClass}>
                   <SelectValue placeholder="Select head" />
                 </SelectTrigger>
                 <SelectContent>
@@ -606,6 +595,7 @@ export default function DepartmentsClient({
                   onChange={(e) =>
                     setForm({ ...form, leads_target: e.target.value })
                   }
+                  className="h-10 numeric"
                 />
               </div>
 
@@ -619,6 +609,7 @@ export default function DepartmentsClient({
                   onChange={(e) =>
                     setForm({ ...form, calls_target: e.target.value })
                   }
+                  className="h-10 numeric"
                 />
               </div>
             </div>
@@ -629,7 +620,7 @@ export default function DepartmentsClient({
               {formLoading && (
                 <Loader2Icon className="size-4 animate-spin" />
               )}
-              Save Changes
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -642,8 +633,8 @@ export default function DepartmentsClient({
             <DialogTitle>Cannot Delete Department</DialogTitle>
             <DialogDescription>
               {deleteInfo?.has_active_users ? (
-                <div className="flex items-start gap-2 mt-1">
-                  <AlertTriangleIcon className="size-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="mt-1 flex items-start gap-2">
+                  <AlertTriangleIcon className="mt-0.5 size-5 shrink-0 text-status-warning" />
                   <span>
                     <strong>{deleteTarget?.name}</strong> has{' '}
                     <strong>{deleteInfo.user_count}</strong> active user
