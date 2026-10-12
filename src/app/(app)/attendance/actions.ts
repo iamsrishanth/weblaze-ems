@@ -350,22 +350,26 @@ export async function getTeamAttendance(params?: {
 
     const date = params?.date ?? orgToday()
 
-    // Determine which department to query
+    // Super admins may omit departmentId to see all active employees. Regular
+    // admins remain scoped to their own department.
     const targetDeptId =
-      user.role === 'super_admin'
-        ? params?.departmentId ?? department?.id
-        : department?.id
+      user.role === 'super_admin' ? params?.departmentId : department?.id
 
-    if (!targetDeptId) {
+    if (user.role !== 'super_admin' && !targetDeptId) {
       throw new Error('No department associated with your account.')
     }
 
-    // Get all active users in department
-    const { data: users, error: usersError } = await supabase
+    // Get all active users in the requested scope.
+    let usersQuery = supabase
       .from('app_user')
       .select('id, name, email')
-      .eq('department_id', targetDeptId)
       .eq('status', 'active')
+
+    if (targetDeptId) {
+      usersQuery = usersQuery.eq('department_id', targetDeptId)
+    }
+
+    const { data: users, error: usersError } = await usersQuery
 
     if (usersError) throw usersError
 

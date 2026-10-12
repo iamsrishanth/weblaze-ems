@@ -209,10 +209,14 @@ export default function AttendancePage() {
     ;(async () => {
       setTeamLoading(true)
       const res = await getTeamAttendance({ date: teamDate })
-      if (!cancelled && res.success) {
-        setTeamData(res.data)
+      if (!cancelled) {
+        if (res.success) {
+          setTeamData(res.data)
+        } else {
+          setError(res.error)
+        }
+        setTeamLoading(false)
       }
-      if (!cancelled) setTeamLoading(false)
     })()
     return () => {
       cancelled = true
