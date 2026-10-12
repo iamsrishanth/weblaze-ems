@@ -7,6 +7,7 @@ import {
 } from "@/lib/mobile/api"
 import { getMobileUserContext } from "@/lib/mobile/context"
 import { readJsonBody } from "@/lib/mobile/daily"
+import { createServiceClient } from "@/lib/supabase/admin"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +19,11 @@ export async function POST(request: Request): Promise<Response> {
     const body = await readJsonBody(request)
     const password = typeof body.password === "string" ? body.password : ""
     const confirmPassword =
-      typeof body.confirm_password === "string" ? body.confirm_password : ""
+      typeof body.confirm_password === "string"
+        ? body.confirm_password
+        : typeof body.confirmPassword === "string"
+          ? body.confirmPassword
+          : ""
 
     if (password.length < 8) {
       throw new MobileApiError(
@@ -37,18 +42,41 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    const { error: authError } = await context.client.auth.updateUser({
-      password,
-    })
-    if (authError) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) {
       throw new MobileApiError(
-        "PASSWORD_UPDATE_FAILED",
-        "The password could not be updated.",
-        422,
+        "SERVER_MISCONFIGURED",
+        "The authentication service is not configured.",
+        500,
       )
     }
 
-    const { data, error: profileError } = await context.client
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      method: "PUT",
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${context.access_token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "Weblaze-EMS-Mobile-API",
+      },
+      body: JSON.stringify({ password }),
+    })
+    if (!authResponse.ok) {
+      throw new MobileApiError(
+        "PASSWORD_UPDATE_FAILED",
+        "The password could not be updated.",
+        authResponse.status === 401 || authResponse.status === 403
+          ? 401
+          : authResponse.status === 429
+            ? 429
+            : authResponse.status >= 500
+              ? 503
+              : 422,
+      )
+    }
+
+    const { data, error: profileError } = await createServiceClient()
       .from("app_user")
       .update({ must_change_pw: false })
       .eq("id", context.user.id)

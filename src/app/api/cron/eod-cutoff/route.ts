@@ -6,7 +6,7 @@ import { createServiceClient } from '@/lib/supabase/admin'
  *
  * Triggered by pg_cron (primary) or Vercel Cron (backup).
  * Calls process_eod_cutoff() which marks missing EOD reports as 'missed'
- * for all active employees on working days after 6 PM IST.
+ * for all active employees on working days after the 11 PM IST deadline.
  *
  * Protected by CRON_SECRET via middleware.
  */
@@ -29,7 +29,7 @@ export async function POST() {
     const { data: missed, error: countError } = await supabase
       .from('eod_report')
       .select('id', { count: 'exact', head: true })
-      .eq('report_date', new Date().toISOString().split('T')[0])
+      .eq('report_date', new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()))
       .eq('status', 'missed')
 
     const count = missed ?? 0

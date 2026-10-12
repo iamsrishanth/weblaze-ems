@@ -59,6 +59,7 @@ export interface Attendance {
   check_in_at: string | null
   check_out_at: string | null
   status: AttendanceStatus
+  timing_status?: 'early' | 'on_time' | 'late' | null
   total_hours: number
   created_at?: string
   updated_at?: string

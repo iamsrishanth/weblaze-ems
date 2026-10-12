@@ -7,6 +7,7 @@ import { authenticatedAction } from '@/lib/auth/require-role'
 import { eodReportSchema } from '@/lib/validations/index'
 import type { EODReport, EODStatus, ActionResult, WeeklyReport } from '@/types'
 import { z } from 'zod'
+import { isEodLate } from '@/lib/work-schedule'
 
 // ---------------------------------------------------------------------------
 // getProfile — fetch current user profile for client components
@@ -69,9 +70,14 @@ export const submitEOD = authenticatedAction({
     const today = input.date ?? orgToday()
     const now = new Date().toISOString()
 
-    // Determine status: late if submitted after 6 PM
-    const currentHour = new Date().getHours()
-    const status: EODStatus = currentHour >= 18 ? 'late' : 'submitted'
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date())
+    const timePart = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0)
+    const status: EODStatus = isEodLate(timePart('hour') % 24, timePart('minute')) ? 'late' : 'submitted'
 
     // Upsert EOD report (one per user per day)
     const { data: existing, error: fetchError } = await supabase

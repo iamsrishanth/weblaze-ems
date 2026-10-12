@@ -8,6 +8,7 @@ import {
   runMobileRoute,
   validateLocation,
 } from "@/lib/mobile/daily"
+import { attendanceTimingStatus } from "@/lib/work-schedule"
 
 export const dynamic = "force-dynamic"
 
@@ -30,11 +31,13 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const network = await getClientNetwork()
+    const timingStatus = attendanceTimingStatus(hour, minute)
     const insert = {
       user_id: user.id,
       work_date: date,
       check_in_at: now,
-      status: hour > 9 || (hour === 9 && minute > 30) ? "late" : "present",
+      // Keep the persisted enum backward-compatible; the timing label is returned separately.
+      status: timingStatus === "late" ? "late" : "present",
       check_in_lat: location?.lat ?? null,
       check_in_lng: location?.lng ?? null,
       check_in_ip: network.ip,
@@ -50,6 +53,9 @@ export async function POST(request: Request): Promise<Response> {
       }
       throw error
     }
-    return attendanceDto(data as Record<string, unknown>)
+    return {
+      ...attendanceDto(data as Record<string, unknown>),
+      timing_status: timingStatus,
+    }
   })
 }

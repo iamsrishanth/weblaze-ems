@@ -5,6 +5,7 @@ import { orgToday } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/admin'
 import { getClientNetwork } from '@/lib/request-ip'
+import { attendanceTimingStatus, attendanceTimingStatusAt } from '@/lib/work-schedule'
 import type {
   Attendance,
   GeoPoint,
@@ -141,7 +142,10 @@ export async function getTodayAttendance(): Promise<
       .maybeSingle()
 
     if (error) throw error
-    return data as Attendance | null
+    const record = data as Attendance | null
+    return record
+      ? { ...record, timing_status: record.check_in_at ? attendanceTimingStatusAt(new Date(record.check_in_at)) : null }
+      : null
   })
 }
 
@@ -170,9 +174,8 @@ export async function checkIn(
 
     const now = new Date()
 
-    // Late after 09:30 IST
-    const status: Attendance['status'] =
-      hour > 9 || (hour === 9 && minute > 30) ? 'late' : 'present'
+    const timingStatus = attendanceTimingStatus(hour, minute)
+    const status: Attendance['status'] = timingStatus === 'late' ? 'late' : 'present'
 
     // Audit only — stored, never rendered.
     const network = await getClientNetwork()
@@ -202,7 +205,7 @@ export async function checkIn(
       event: 'check_in',
     })
 
-    return record
+    return { ...record, timing_status: timingStatus }
   })
 }
 
@@ -316,7 +319,12 @@ export async function getAttendanceHistory(params?: {
     const { data, error } = await query.limit(100)
 
     if (error) throw error
-    return (data as Attendance[]) ?? []
+    return ((data as Attendance[]) ?? []).map((record) => ({
+      ...record,
+      timing_status: record.check_in_at
+        ? attendanceTimingStatusAt(new Date(record.check_in_at))
+        : null,
+    }))
   })
 }
 

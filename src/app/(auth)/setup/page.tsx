@@ -169,25 +169,29 @@ export default function SetupPage() {
         return;
       }
 
-      // Update password in Supabase Auth
-      const { error: updateError } = await supabase.auth.updateUser({
-        password,
-      });
-
-      if (updateError) {
-        toast.error(updateError.message);
+      // Keep browser and mobile setup on the same trusted server boundary.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        toast.error("Session expired. Please sign in again.");
+        window.location.href = "/login";
         return;
       }
-
-      // Update must_change_pw flag
-      const { error: profileError } = await supabase
-        .from("app_user")
-        .update({ must_change_pw: false })
-        .eq("id", user.id);
-
-      if (profileError) {
-        console.error("Error updating profile:", profileError);
-        // Password was updated, proceed anyway
+      const setupResponse = await fetch("/api/mobile/v1/me/password", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password, confirm_password: confirmPassword }),
+      });
+      const setupResult = (await setupResponse.json()) as {
+        success?: boolean;
+        error?: { message?: string };
+      };
+      if (!setupResponse.ok || !setupResult.success) {
+        toast.error(setupResult.error?.message ?? "Could not set your password.");
+        return;
       }
 
       toast.success("Password set successfully!");

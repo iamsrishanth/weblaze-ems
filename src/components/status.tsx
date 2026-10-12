@@ -67,11 +67,14 @@ export function statusTone(status: string): StatusTone {
   switch (status) {
     // attendance / EOD / tasks / users — positive
     case "present":
+    case "on_time":
     case "submitted":
     case "done":
     case "active":
       return "positive";
-    // late
+    // early is a valid, non-problem attendance state; late is warning.
+    case "early":
+      return "neutral";
     case "late":
       return "warning";
     // partial (sky)
@@ -104,6 +107,8 @@ export function statusLabel(status: string): string {
   switch (status) {
     case "half_day":
       return "Half Day";
+    case "on_time":
+      return "On Time";
     case "in_progress":
       return "In Progress";
     case "not_submitted":

@@ -1,5 +1,6 @@
 import {
   WEEKLY_COLUMNS,
+  parseDate,
   parsePage,
   parseUuid,
   runMobileRoute,
@@ -26,7 +27,7 @@ export async function GET(request: Request): Promise<Response> {
       return { items: [], page: page.page, page_size: page.page_size, total: 0 }
     }
     if (userIds) query.in("user_id", userIds)
-    const weekStart = params.get("week_start")
+    const weekStart = parseDate(params.get("week_start"), "week_start")
     if (weekStart) query.eq("week_start", weekStart)
 
     const { data, error, count } = await query

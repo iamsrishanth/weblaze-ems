@@ -11,6 +11,7 @@ import { getMobileUserContext } from "@/lib/mobile/context"
 import type { Database } from "@/lib/supabase/server"
 import type { AttendanceStatus, EODStatus, TaskPriority, TaskStatus, UserRole } from "@/types"
 import type { MobileUserContext } from "@/lib/mobile/context"
+import { attendanceTimingStatusAt, isAtOrAfterEodDeadline } from "@/lib/work-schedule"
 
 export type MobileClient = SupabaseClient<Database>
 export type DbRow = Record<string, unknown>
@@ -29,6 +30,7 @@ export type AttendanceDto = {
   check_in_at: string | null
   check_out_at: string | null
   status: AttendanceStatus
+  timing_status: "early" | "on_time" | "late" | null
   total_hours: number | null
   created_at: string
   updated_at: string
@@ -136,6 +138,20 @@ export function toMobileError(error: unknown, fallback = "The request could not 
   }
   if (candidate.code === "23503") {
     return new MobileApiError("VALIDATION_ERROR", "A referenced record is not available.", 422)
+  }
+  if (
+    candidate.code === "23514" ||
+    candidate.code === "22023" ||
+    candidate.code === "22003" ||
+    candidate.code === "23502"
+  ) {
+    return new MobileApiError("VALIDATION_ERROR", "One or more values are invalid.", 422)
+  }
+  if (candidate.code === "40001") {
+    return new MobileApiError("CONFLICT", "The record changed elsewhere. Reload and try again.", 409)
+  }
+  if (candidate.code === "42501") {
+    return new MobileApiError("FORBIDDEN", "You are not allowed to perform this operation.", 403)
   }
   if (candidate.code === "22P02") {
     return new MobileApiError("VALIDATION_ERROR", "One or more values are invalid.", 422)
@@ -245,7 +261,7 @@ export function isLateInOrganization(date = new Date()): boolean {
 
 export function isAtOrAfterCutoff(date = new Date()): boolean {
   const clock = organizationClock(date)
-  return clock.hour >= 18
+  return isAtOrAfterEodDeadline(clock.hour, clock.minute)
 }
 
 export function numberOrNull(value: unknown): number | null {
@@ -278,6 +294,11 @@ export function attendanceDto(row: DbRow): AttendanceDto {
     check_in_at: stringOrNull(row.check_in_at),
     check_out_at: stringOrNull(row.check_out_at),
     status: row.status as AttendanceStatus,
+    timing_status: row.timing_status === "early" || row.timing_status === "on_time" || row.timing_status === "late"
+      ? row.timing_status
+      : typeof row.check_in_at === "string"
+        ? attendanceTimingStatusAt(new Date(row.check_in_at))
+        : null,
     total_hours: numberOrNull(row.total_hours),
     created_at: stringValue(row.created_at),
     updated_at: stringValue(row.updated_at),

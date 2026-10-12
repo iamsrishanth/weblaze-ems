@@ -16,6 +16,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Mobile API handlers verify bearer tokens themselves. Never run the browser
+  // cookie refresh/redirect path for these JSON endpoints.
+  if (pathname.startsWith("/api/mobile/")) {
+    return NextResponse.next();
+  }
+
   // ── Auth check for protected /app/* routes ─────────────────
   // (app) route group maps to /dashboard, /attendance, /tasks, etc.
   if (

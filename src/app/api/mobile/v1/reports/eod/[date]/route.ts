@@ -1,8 +1,7 @@
 import {
-  EOD_COLUMNS,
   MobileApiError,
   eodDto,
-  organizationClock,
+  metricsDto,
   parseDate,
   parseOptionalNonNegativeInteger,
   parseStringArray,
@@ -10,17 +9,42 @@ import {
   requirePositiveHours,
   runMobileRoute,
 } from "@/lib/mobile/daily"
+import { createServiceClient } from "@/lib/supabase/admin"
+import { isEodLate, organizationTimeParts } from "@/lib/work-schedule"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 type RouteContext = { params: Promise<{ date: string }> }
+
+type IdempotentResult = {
+  replayed?: boolean
+  payload?: {
+    report: Record<string, unknown>
+    metrics: Record<string, unknown> | null
+    warning?: string
+  }
+}
+
+async function requestHash(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value))
+  const digest = await crypto.subtle.digest("SHA-256", bytes)
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
 
 export async function PUT(request: Request, context: RouteContext): Promise<Response> {
   return runMobileRoute(request, async (userContext) => {
     const reportDate = parseDate((await context.params).date, "date")
-    const { date: today, hour } = organizationClock()
-    if (!reportDate || reportDate !== today) {
-      throw new MobileApiError("INVALID_DATE", "Only the current organization day can be submitted.", 422)
+    if (!reportDate) {
+      throw new MobileApiError("INVALID_DATE", "A report date is required.", 422)
     }
+
+    const idempotencyKey = request.headers.get("idempotency-key")?.trim()
+    if (!idempotencyKey || !/^[A-Za-z0-9._:-]{1,128}$/.test(idempotencyKey)) {
+      throw new MobileApiError("IDEMPOTENCY_REQUIRED", "A stable Idempotency-Key is required for report submission.", 400, {
+        "idempotency-key": "Use 1-128 letters, numbers, dots, underscores, colons, or hyphens.",
+      })
+    }
+
     const body = await readJsonBody(request)
     const summary = typeof body.summary === "string" ? body.summary.trim() : ""
     if (summary.length < 10) {
@@ -30,54 +54,57 @@ export async function PUT(request: Request, context: RouteContext): Promise<Resp
     }
     const hours = requirePositiveHours(body.hours_worked ?? body.hours)
     const taskIds = parseStringArray(body.task_ids, "task_ids") ?? []
+    if (new Set(taskIds).size !== taskIds.length) {
+      throw new MobileApiError("INVALID_FIELD", "task_ids must not contain duplicates.", 422, {
+        task_ids: "Each task may only be listed once.",
+      })
+    }
+
     const leads = parseOptionalNonNegativeInteger(body.leads, "leads")
     const calls = parseOptionalNonNegativeInteger(body.calls, "calls")
-    const existingResult = await userContext.client
-      .from("eod_report")
-      .select(EOD_COLUMNS)
-      .eq("user_id", userContext.user.id)
-      .eq("report_date", reportDate)
-      .maybeSingle()
-    if (existingResult.error) throw existingResult.error
-    const existing = existingResult.data as Record<string, unknown> | null
-    const expected = body.expected_updated_at
-    if (existing && (typeof expected !== "string" || String(existing.updated_at) !== expected)) {
-      throw new MobileApiError("CONFLICT", "The report changed elsewhere. Reload before saving.", 409)
-    }
-    const status = hour >= 18 ? "late" : "submitted"
+    const expectedUpdatedAt = typeof body.expected_updated_at === "string" ? body.expected_updated_at : null
+
     const payload = {
+      report_date: reportDate,
       summary,
       hours_worked: hours,
-      tasks_completed: taskIds,
-      status,
-      submitted_at: new Date().toISOString(),
+      task_ids: taskIds,
+      leads: leads ?? null,
+      calls: calls ?? null,
+      expected_updated_at: expectedUpdatedAt,
     }
-    const reportQuery = existing
-      ? userContext.client.from("eod_report").update(payload).eq("id", String(existing.id)).eq("updated_at", String(existing.updated_at))
-      : userContext.client.from("eod_report").insert({
-          user_id: userContext.user.id,
-          report_date: reportDate,
-          ...payload,
-        })
-    const reportResult = await reportQuery.select(EOD_COLUMNS).maybeSingle()
-    if (reportResult.error) {
-      if (reportResult.error.code === "23505") {
-        throw new MobileApiError("CONFLICT", "The report already exists. Reload before saving.", 409)
-      }
-      throw reportResult.error
-    }
-    if (!reportResult.data) throw new MobileApiError("CONFLICT", "The report changed elsewhere. Reload before saving.", 409)
+    const hash = await requestHash(payload)
+    const service = createServiceClient()
+    const result = await service.rpc("mobile_submit_eod_idempotent", {
+      p_actor_id: userContext.user.id,
+      p_operation: "eod.submit",
+      p_idempotency_key: idempotencyKey,
+      p_request_hash: hash,
+      p_report_date: reportDate,
+      p_summary: summary,
+      p_hours: hours,
+      p_task_ids: taskIds,
+      p_status: (() => {
+        const current = organizationTimeParts()
+        return isEodLate(current.hour, current.minute) ? "late" : "submitted"
+      })(),
+      p_submitted_at: new Date().toISOString(),
+      p_leads: leads,
+      p_calls: calls,
+      p_expected_updated_at: expectedUpdatedAt,
+    })
+    if (result.error) throw result.error
 
-    const shouldWriteMetrics = userContext.department?.name.toLocaleLowerCase().includes("sales") && (leads !== undefined || calls !== undefined)
-    if (shouldWriteMetrics) {
-      const metricsPayload = { user_id: userContext.user.id, entry_date: reportDate, leads: leads ?? 0, calls: calls ?? 0 }
-      const metricsResult = await userContext.client.from("daily_metrics").upsert(metricsPayload, { onConflict: "user_id,entry_date" })
-      if (metricsResult.error) throw metricsResult.error
+    const idempotent = result.data as IdempotentResult | null
+    const response = idempotent?.payload
+    if (!response?.report) {
+      throw new MobileApiError("INTERNAL_ERROR", "The server did not return the saved report.", 500)
     }
     return {
-      report: eodDto(reportResult.data as Record<string, unknown>),
-      metrics: null,
-      warning: shouldWriteMetrics ? undefined : "Sales metrics are not enabled for this department.",
+      replayed: idempotent?.replayed === true,
+      report: eodDto(response.report),
+      metrics: response.metrics ? metricsDto(response.metrics) : null,
+      warning: response.warning ?? (userContext.department?.name.toLocaleLowerCase().includes("sales") ? undefined : "Sales metrics are not enabled for this department."),
     }
   })
 }

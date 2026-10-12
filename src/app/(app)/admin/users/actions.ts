@@ -148,11 +148,11 @@ export const createUser = authenticatedAction({
       throw new Error('Failed to create auth user — no user returned.')
     }
 
-    // 2. Create the app_user profile row
+    // 2. Reconcile the Auth-triggered app_user row rather than inserting a
+    // duplicate. The trigger is the source of truth for profile provisioning.
     const { error: profileError } = await serviceClient
       .from('app_user')
-      .insert({
-        id: authUser.user.id,
+      .update({
         email: input.email,
         name: input.name,
         role: input.role,
@@ -160,11 +160,21 @@ export const createUser = authenticatedAction({
         status: 'active',
         must_change_pw: true,
       })
+      .eq('id', authUser.user.id)
 
     if (profileError) {
-      // Best-effort cleanup: delete the auth user if profile insert fails
       await serviceClient.auth.admin.deleteUser(authUser.user.id)
       throw new Error(profileError.message)
+    }
+
+    const { data: reconciledProfile, error: profileLookupError } = await serviceClient
+      .from('app_user')
+      .select('id')
+      .eq('id', authUser.user.id)
+      .maybeSingle()
+    if (profileLookupError || !reconciledProfile) {
+      await serviceClient.auth.admin.deleteUser(authUser.user.id)
+      throw new Error('The account profile could not be provisioned.')
     }
 
     // 3. No recovery email is sent — the account is usable immediately with the

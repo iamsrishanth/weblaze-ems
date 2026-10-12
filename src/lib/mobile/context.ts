@@ -36,6 +36,7 @@ const DEPARTMENT_COLUMNS = [
 export type MobileUserContext = {
   client: SupabaseClient<Database>
   auth_user: SupabaseAuthUser
+  access_token: string
   user: AppUser
   department: Department | null
 }
@@ -170,6 +171,7 @@ export async function getMobileUserContext(
   return {
     client,
     auth_user: authUser,
+    access_token: accessToken,
     user,
     department,
   }
